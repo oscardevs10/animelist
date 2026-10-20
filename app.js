@@ -18,6 +18,7 @@ const GENRES_ES = {
 };
 const FORMAT_ES = { TV_SHORT: 'TV corto', MOVIE: 'Película', SPECIAL: 'Especial', MUSIC: 'Música' };
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const touchOnly = matchMedia('(hover: none)');
 
 const svg = p => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${p}</svg>`;
 const ICON = {
@@ -27,6 +28,7 @@ const ICON = {
   trash: svg('<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>'),
   link: svg('<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>'),
   star: svg('<path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/>'),
+  clock: svg('<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>'),
 };
 
 /* ---------- Utilidades ---------- */
@@ -103,19 +105,70 @@ const fromAniList = m => sanitize({
 });
 
 const FIELDS = 'id title { romaji english } coverImage { extraLarge large } episodes genres description(asHtml: false) seasonYear format averageScore siteUrl bannerImage';
-async function anilist(filter, { q, perPage = 24, signal } = {}) {
-  // GraphQL rechaza variables declaradas y no usadas: $q solo existe cuando hay búsqueda
-  const query = `query (${q ? '$q: String, ' : ''}$n: Int) { Page(perPage: $n) { media(type: ANIME, isAdult: false, ${q ? 'search: $q, ' : ''}${filter}) { ${FIELDS} } } }`;
+async function gql(query, variables, signal) {
   const res = await fetch(API, {
     method: 'POST',
     signal,
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({ query, variables: { q, n: perPage } }),
+    body: JSON.stringify({ query, variables }),
   });
   if (!res.ok) throw new Error(res.status === 429 ? 'rate' : 'http');
-  const json = await res.json();
-  return (json?.data?.Page?.media || []).map(fromAniList).filter(a => a?.aniId);
+  return (await res.json())?.data;
 }
+
+async function anilist(filter, { q, perPage = 24, signal } = {}) {
+  // GraphQL rechaza variables declaradas y no usadas: $q solo existe cuando hay búsqueda
+  const query = `query (${q ? '$q: String, ' : ''}$n: Int) { Page(perPage: $n) { media(type: ANIME, isAdult: false, ${q ? 'search: $q, ' : ''}${filter}) { ${FIELDS} } } }`;
+  const data = await gql(query, { q, n: perPage }, signal);
+  return (data?.Page?.media || []).map(fromAniList).filter(a => a?.aniId);
+}
+
+/* ---------- En vivo desde AniList: próximo episodio y dónde verlo (no se guarda, cambia con el tiempo) ---------- */
+const live = new Map(); // aniId → { next: { episode, at }, links: [{ site, url, icon, color }] } | null mientras carga
+const rtf = new Intl.RelativeTimeFormat('es', { numeric: 'auto' });
+const liveOf = m => ({
+  next: m.nextAiringEpisode
+    ? { episode: int(m.nextAiringEpisode.episode, 1, 1e5), at: (int(m.nextAiringEpisode.airingAt, 0, 1e10) || 0) * 1000 }
+    : null,
+  links: [...new Map((m.externalLinks || [])
+    .filter(l => l?.type === 'STREAMING')
+    .map(l => [str(l.site, 40), {
+      site: str(l.site, 40),
+      url: safeUrl(l.url).replace(/^http:/, 'https:'),
+      icon: safeUrl(l.icon),
+      color: /^#[0-9a-f]{3,8}$/i.test(l.color) ? l.color : '',
+    }])).values()].filter(l => l.site && l.url).slice(0, 4),
+});
+
+function airingText(at) {
+  const s = (at - Date.now()) / 1000;
+  if (s <= 0) return 'ya disponible';
+  if (s < 3600) return rtf.format(Math.max(1, Math.round(s / 60)), 'minute');
+  if (s < 86400) return rtf.format(Math.round(s / 3600), 'hour');
+  if (s < 7 * 86400) return rtf.format(Math.round(s / 86400), 'day');
+  return new Date(at).toLocaleDateString('es', { day: 'numeric', month: 'short' }); // lejos: fecha corta
+}
+
+async function loadLive() {
+  const ids = [...new Set(items.map(a => a.aniId).filter(id => id && !live.has(id)))];
+  if (!ids.length) return;
+  ids.forEach(id => live.set(id, null)); // marca como pedidos para no repetir la consulta
+  const query = 'query ($ids: [Int]) { Page(perPage: 50) { media(id_in: $ids, type: ANIME) { id nextAiringEpisode { episode airingAt } externalLinks { site url type icon color } } } }';
+  for (let i = 0; i < ids.length; i += 50) {
+    try {
+      const data = await gql(query, { ids: ids.slice(i, i + 50) });
+      (data?.Page?.media || []).forEach(m => live.set(m.id, liveOf(m)));
+    } catch (err) {
+      console.error(err);
+      ids.slice(i, i + 50).forEach(id => live.delete(id)); // se reintenta en el próximo cambio
+    }
+  }
+  if (user) renderList('none');
+  if (document.body.dataset.view === 'friend') renderFriend();
+}
+
+// El "dentro de 2 horas" se mantiene al día sin volver a pintar las tarjetas.
+setInterval(() => $$('[data-airing]').forEach(el => { el.lastChild.textContent = ` ${airingText(Number(el.dataset.airing))}`; }), 60000);
 
 /* ---------- Persistencia: Supabase (tabla animes, una fila por anime; RLS = cada quien solo ve lo suyo) ---------- */
 const db = typeof SUPABASE_URL === 'string' && SUPABASE_URL && window.supabase
@@ -228,6 +281,19 @@ function visible() {
     .sort(sorters[ui.sort]);
 }
 
+// Próximo episodio (solo si aún lo estás viendo o quieres verlo) y plataformas donde verlo.
+function liveHTML(a) {
+  const lv = live.get(a.aniId);
+  if (!lv) return '';
+  const next = lv.next && (a.status === 'watching' || a.status === 'plan')
+    ? `<p class="airing${lv.next.at - Date.now() < 86400000 ? ' is-soon' : ''}" data-airing="${lv.next.at}" title="${esc(new Date(lv.next.at).toLocaleString('es'))}">${ICON.clock}<b>Ep ${lv.next.episode}</b> ${esc(airingText(lv.next.at))}</p>`
+    : '';
+  const where = lv.links.length
+    ? `<div class="where">${lv.links.map(l => `<a class="where__link" href="${esc(l.url)}" target="_blank" rel="noopener noreferrer" title="Ver en ${esc(l.site)}" aria-label="Ver en ${esc(l.site)}"${l.color ? ` style="--c:${l.color}"` : ''}>${l.icon ? `<img src="${esc(l.icon)}" alt="" referrerpolicy="no-referrer">` : esc(l.site.slice(0, 1))}</a>`).join('')}</div>`
+    : '';
+  return next + where;
+}
+
 function cardHTML(a, i, animate) {
   const stars = [1, 2, 3, 4, 5].map(n =>
     `<button class="star${n <= a.rating ? ' is-on' : ''}" type="button" data-act="rate" data-v="${n}" aria-label="Calificar ${n} de 5">${ICON.star}</button>`).join('');
@@ -249,6 +315,7 @@ function cardHTML(a, i, animate) {
         ${meta ? `<p class="card__meta">${esc(meta)}</p>` : ''}
       </div>
       ${a.genres.length ? `<div class="tags">${a.genres.slice(0, 2).map(g => `<span class="tag">${esc(g)}</span>`).join('')}</div>` : ''}
+      ${liveHTML(a)}
       ${a.notes ? `<p class="card__notes">${esc(a.notes)}</p>` : ''}
       <div class="progress">
         <div class="progress__track"><span class="progress__fill" style="width:${pct(a) * 100}%"></span></div>
@@ -321,6 +388,7 @@ function refresh(animate = 'none') {
 function commit(animate = 'none') {
   const saved = save();
   refresh(animate);
+  loadLive();
   return saved;
 }
 
@@ -863,6 +931,7 @@ function setAuthMode(mode) {
   A.password.closest('.field').hidden = !cfg.pass;
   A.password.required = cfg.pass;
   A.password.autocomplete = mode === 'login' ? 'current-password' : 'new-password';
+  A.invite.closest('.field').hidden = mode !== 'signup';
   authTabs.hidden = mode === 'forgot' || mode === 'recovery';
   $('#forgotBtn').hidden = mode !== 'login';
   $('#backBtn').hidden = mode !== 'forgot';
@@ -879,7 +948,7 @@ function authNote(text, ok = false) {
 async function enter(u) {
   user = u;
   $('#userEmail').textContent = u.email;
-  setView('app');
+  setView(friendHandle ? 'friend' : 'app');
   try {
     await loadItems();
   } catch (err) {
@@ -889,7 +958,12 @@ async function enter(u) {
     toast('No pude cargar tu lista. Revisa tu conexión y recarga la página.', null, 8000);
   }
   if (user !== u) return; // cerró sesión mientras cargaba
+  if (friendHandle) {
+    renderFriend(); // estaba viendo la lista de un amigo: solo se actualiza "en común"
+    return;
+  }
   refresh('all');
+  loadLive();
   const local = localBackup();
   if (local.length) {
     toast(`Hay ${local.length} animes guardados en este navegador.`, {
@@ -910,7 +984,12 @@ function leave() {
   $$('dialog[open]').forEach(d => d.close());
   refresh('none');
   setAuthMode('login');
-  setView('auth');
+  if (friendHandle) {
+    setView('friend');
+    renderFriend();
+  } else {
+    setView('auth');
+  }
 }
 
 async function logout() {
@@ -937,8 +1016,10 @@ authForm.addEventListener('submit', async e => {
     if (authMode === 'login') {
       res = await db.auth.signInWithPassword({ email, password });
     } else if (authMode === 'signup') {
-      res = await db.auth.signUp({ email, password, options: { emailRedirectTo: appUrl } });
+      res = await db.auth.signUp({ email, password, options: { emailRedirectTo: appUrl, data: { invite: A.invite.value.trim() } } });
       if (!res.error && !res.data.session) return authNote('Te enviamos un correo para confirmar tu cuenta. Ábrelo y luego inicia sesión.', true);
+      // La base rechaza el registro sin el código correcto; Supabase lo reporta como error genérico de base de datos.
+      if (res.error && /database error/i.test(res.error.message)) return authNote('Código de invitación incorrecto. Pídeselo a quien te invitó.');
     } else if (authMode === 'forgot') {
       res = await db.auth.resetPasswordForEmail(email, { redirectTo: appUrl });
       if (!res.error) return authNote('Si ese correo tiene cuenta, te llegará un enlace para cambiar la contraseña.', true);
@@ -964,6 +1045,166 @@ authForm.addEventListener('submit', async e => {
 
 addEventListener('beforeunload', e => { if (unsaved) e.preventDefault(); });
 
+/* ---------- Compartir mi lista y ver la de un amigo (?lista=handle) ---------- */
+const params = new URLSearchParams(location.search);
+const friendHandle = str(params.get('lista'), 40);
+const shareModal = $('#shareModal');
+const shareForm = $('#shareForm');
+const S = shareForm.elements;
+const friendGrid = $('#friendGrid');
+const friendChips = $('#friendChips');
+let friend = null; // { name, items, missing }
+let friendFilter = 'all';
+const shareUrl = handle => `${appUrl}?lista=${encodeURIComponent(handle)}`;
+const sameAnime = (a, b) => (a.aniId && a.aniId === b.aniId) || norm(a.title) === norm(b.title);
+const inMyList = a => items.some(x => sameAnime(x, a));
+const shareMsg = (text, bad = false) => {
+  const el = $('#shareMsg');
+  el.textContent = text;
+  el.classList.toggle('is-bad', bad);
+};
+
+async function openShare() {
+  shareForm.reset();
+  shareMsg('');
+  $('#shareLinkRow').hidden = true;
+  shareModal.showModal();
+  const { data, error } = await db.from('profiles').select('handle, name, share').eq('id', user.id).maybeSingle();
+  if (error || !data) return shareMsg('Esta función aún no está activada en la base de datos (README → supabase/002).', true);
+  S.name.value = data.name || '';
+  S.share.checked = data.share;
+  S.link.value = shareUrl(data.handle);
+  $('#shareLinkRow').hidden = !data.share;
+}
+
+async function saveShare() {
+  const { error } = await db.from('profiles').update({ name: str(S.name.value, 40) || null, share: S.share.checked }).eq('id', user.id);
+  if (error) return shareMsg('No se pudo guardar. Intenta de nuevo.', true);
+  $('#shareLinkRow').hidden = !S.share.checked;
+  shareMsg(S.share.checked ? 'Listo: cualquiera con el enlace puede ver tu lista (sin tus notas).' : 'Tu lista ya no se puede ver con el enlace.');
+}
+
+shareForm.addEventListener('submit', e => { e.preventDefault(); saveShare(); });
+S.share.addEventListener('change', saveShare);
+$('#copyLink').addEventListener('click', async () => {
+  if (navigator.share && touchOnly.matches) {
+    try { await navigator.share({ title: 'Mi lista de anime', url: S.link.value }); return; } catch {}
+  }
+  try {
+    await navigator.clipboard.writeText(S.link.value);
+    shareMsg('Enlace copiado. Pégalo en WhatsApp o donde quieras.');
+  } catch {
+    S.link.select();
+  }
+});
+
+async function showFriend() {
+  setView('friend');
+  $('#friendName').textContent = 'Cargando…';
+  try {
+    const { data, error } = await db.rpc('shared_list', { p_handle: friendHandle });
+    if (error) throw error;
+    friend = data ? { name: str(data.name, 40), items: sanitizeList(data.items) } : { missing: true, items: [] };
+  } catch (err) {
+    console.error(err);
+    friend = { missing: true, items: [] };
+  }
+  renderFriend();
+}
+
+function friendCardHTML(a, i) {
+  const mine = user && inMyList(a);
+  const meta = metaLine(a);
+  return `
+  <article class="card card--ro card--enter" style="--i:${Math.min(i, 12)}">
+    <div class="card__cover">
+      ${coverImg(a)}
+      ${a.synopsis ? `<div class="card__hover"><p>${esc(a.synopsis)}</p></div>` : ''}
+      <div class="card__badges">
+        <span class="badge status s-${a.status}">${STATUS[a.status]}</span>
+        ${mine ? '<span class="badge badge--common">✓ En común</span>' : ''}
+      </div>
+      ${a.score ? `<span class="badge card__score">★ ${a.score.toFixed(1)}</span>` : ''}
+    </div>
+    <div class="card__body">
+      <div>
+        <h3 class="card__title">${esc(a.title)}</h3>
+        ${meta ? `<p class="card__meta">${esc(meta)}</p>` : ''}
+      </div>
+      ${a.genres.length ? `<div class="tags">${a.genres.slice(0, 2).map(g => `<span class="tag">${esc(g)}</span>`).join('')}</div>` : ''}
+      <div class="progress">
+        <div class="progress__track"><span class="progress__fill" style="width:${pct(a) * 100}%"></span></div>
+        <p class="progress__text">${epText(a)}</p>
+      </div>
+      <div class="card__foot">
+        <div class="stars" role="img" aria-label="Calificación ${a.rating} de 5">${[1, 2, 3, 4, 5].map(n => `<span class="star${n <= a.rating ? ' is-on' : ''}">${ICON.star}</span>`).join('')}</div>
+        ${user && !mine ? `<button class="btn btn--primary btn--xs" type="button" data-fadd="${esc(a.id)}">+ Añadir</button>` : ''}
+      </div>
+    </div>
+  </article>`;
+}
+
+function renderFriend() {
+  if (!friend) return;
+  $('#friendCta').textContent = user ? 'Ir a mi lista' : 'Crear mi cuenta gratis';
+  if (friend.missing) {
+    $('#friendName').textContent = 'Lista no disponible';
+    $('#friendSummary').textContent = 'Este enlace no existe o su dueño dejó de compartir la lista.';
+    friendChips.innerHTML = '';
+    friendGrid.innerHTML = '';
+    $('#friendEmpty').hidden = true;
+    return;
+  }
+  const order = { watching: 0, plan: 1, done: 2, dropped: 3 };
+  const all = [...friend.items].sort((a, b) => order[a.status] - order[b.status] || b.addedAt - a.addedAt);
+  const common = all.filter(inMyList).length;
+  $('#friendName').textContent = friend.name ? `La lista de ${friend.name}` : 'Lista compartida';
+  $('#friendSummary').textContent = `${all.length} ${all.length === 1 ? 'anime' : 'animes'}${user ? ` · ${common} en común contigo` : ''}`;
+  friendChips.innerHTML = user
+    ? [['all', `Todos (${all.length})`], ['common', `En común (${common})`], ['new', `No los tienes (${all.length - common})`]]
+      .map(([k, label]) => `<button class="chip${friendFilter === k ? ' is-active' : ''}" type="button" data-ffilter="${k}">${label}</button>`).join('')
+    : '';
+  const list = all.filter(a => friendFilter === 'all' || (friendFilter === 'common') === inMyList(a));
+  friendGrid.innerHTML = list.map(friendCardHTML).join('');
+  $('#friendEmpty').hidden = list.length > 0;
+}
+
+friendChips.addEventListener('click', e => {
+  const b = e.target.closest('[data-ffilter]');
+  if (!b) return;
+  friendFilter = b.dataset.ffilter;
+  renderFriend();
+});
+
+friendGrid.addEventListener('click', e => {
+  const b = e.target.closest('[data-fadd]');
+  const src = b && user && friend?.items.find(a => a.id === b.dataset.fadd);
+  if (!src || inMyList(src)) return;
+  const a = sanitize({ ...src, id: uid(), status: 'plan', priority: 'med', watched: 0, rating: 0, notes: '', addedAt: Date.now(), updatedAt: Date.now() });
+  items.unshift(a);
+  commit(a.id);
+  renderFriend();
+  toast(`“${a.title}” añadido a tu lista`);
+});
+
+/* ---------- App instalable (PWA) ---------- */
+let installPrompt = null;
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  navigator.serviceWorker.register('sw.js').catch(err => console.error(err));
+}
+addEventListener('beforeinstallprompt', e => {
+  e.preventDefault(); // se muestra nuestro botón en lugar del aviso del navegador
+  installPrompt = e;
+  $$('[data-action="install"]').forEach(b => { b.hidden = false; });
+});
+async function install() {
+  if (!installPrompt) return;
+  installPrompt.prompt();
+  await installPrompt.userChoice;
+  installPrompt = null;
+  $$('[data-action="install"]').forEach(b => { b.hidden = true; });
+}
+
 /* ---------- Eventos ---------- */
 function clearFilters() {
   Object.assign(ui, { status: 'all', genre: null, q: '' });
@@ -979,6 +1220,8 @@ const ACTIONS = {
   import: () => importInput.click(),
   'clear-filters': clearFilters,
   logout,
+  share: () => openShare(),
+  install,
 };
 
 document.addEventListener('click', e => {
@@ -998,7 +1241,11 @@ grid.addEventListener('click', e => {
   else if (act === 'dec') step(a, -1, card);
   else if (act === 'rate') rate(a, Number(btn.dataset.v), card);
   else if (act === 'delete') remove(a);
-  else if (act === 'edit' || (!e.target.closest('a, button') && e.target.closest('.card__cover, .card__title'))) openEditor(a);
+  else if (act === 'edit') openEditor(a);
+  else if (e.target.closest('a, button')) return;
+  else if (touchOnly.matches && e.target.closest('.card__cover') && a.synopsis) {
+    e.target.closest('.card__cover').classList.toggle('is-peek'); // en celular no hay hover: un toque muestra la sinopsis
+  } else if (e.target.closest('.card__cover, .card__title')) openEditor(a);
 });
 
 statusTabs.addEventListener('click', e => {
@@ -1108,7 +1355,10 @@ formStars.innerHTML = [1, 2, 3, 4, 5].map(n => `<button class="star" type="butto
 const track = $('.marquee__track');
 track.append(track.firstElementChild.cloneNode(true)); // segunda copia para el bucle infinito
 setAuthMode('login');
+A.invite.value = str(params.get('invitacion'), 40); // enlace de invitación: ?invitacion=código
+if (A.invite.value) setAuthMode('signup');
 loadWalls();
+if (friendHandle && db) showFriend();
 
 if (!db) {
   setView('auth');
@@ -1126,7 +1376,7 @@ if (!db) {
       }
       const u = session?.user ?? null;
       if (recovering || u?.id === user?.id) {
-        if (!u) setView('auth');
+        if (!u && !recovering) setView(friendHandle ? 'friend' : 'auth');
         return;
       }
       if (u) enter(u);
