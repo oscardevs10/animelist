@@ -1018,8 +1018,8 @@ authForm.addEventListener('submit', async e => {
     } else if (authMode === 'signup') {
       res = await db.auth.signUp({ email, password, options: { emailRedirectTo: appUrl, data: { invite: A.invite.value.trim() } } });
       if (!res.error && !res.data.session) return authNote('Te enviamos un correo para confirmar tu cuenta. Ábrelo y luego inicia sesión.', true);
-      // La base rechaza el registro sin el código correcto; Supabase lo reporta como error genérico de base de datos.
-      if (res.error && /database error/i.test(res.error.message)) return authNote('Código de invitación incorrecto. Pídeselo a quien te invitó.');
+      // La base rechaza el registro sin el código correcto (trigger check_invite); según la versión llega con su texto o como error genérico.
+      if (res.error && /invite_code_invalid|database error/i.test(res.error.message)) return authNote('Código de invitación incorrecto. Pídeselo a quien te invitó.');
     } else if (authMode === 'forgot') {
       res = await db.auth.resetPasswordForEmail(email, { redirectTo: appUrl });
       if (!res.error) return authNote('Si ese correo tiene cuenta, te llegará un enlace para cambiar la contraseña.', true);
