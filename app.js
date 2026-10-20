@@ -28,7 +28,6 @@ const ICON = {
   link: svg('<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>'),
   star: svg('<path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/>'),
 };
-const HERO_TILES = ['名作', '推し', '見たい', 'アニメ', '次は？'].map((t, i) => `<div class="tile tile--${i + 1}"><span>${t}</span></div>`);
 
 /* ---------- Utilidades ---------- */
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -79,6 +78,7 @@ function sanitize(a) {
     notes: str(a.notes, 2000),
     synopsis: str(a.synopsis, 4000),
     url: safeUrl(a.url),
+    banner: safeUrl(a.banner),
     year: int(a.year, 1900, 2100),
     type: str(a.type, 20),
     score: a.score != null && score > 0 && score <= 10 ? Math.round(score * 100) / 100 : null,
@@ -96,12 +96,13 @@ const fromAniList = m => sanitize({
   genres: (m.genres || []).map(g => GENRES_ES[g] || g),
   synopsis: m.description?.replace(/<[^>]*>/g, ''),
   url: m.siteUrl,
+  banner: m.bannerImage,
   year: m.seasonYear,
   type: FORMAT_ES[m.format] || m.format,
   score: m.averageScore / 10,
 });
 
-const FIELDS = 'id title { romaji english } coverImage { extraLarge large } episodes genres description(asHtml: false) seasonYear format averageScore siteUrl';
+const FIELDS = 'id title { romaji english } coverImage { extraLarge large } episodes genres description(asHtml: false) seasonYear format averageScore siteUrl bannerImage';
 async function anilist(filter, { q, perPage = 24, signal } = {}) {
   // GraphQL rechaza variables declaradas y no usadas: $q solo existe cuando hay búsqueda
   const query = `query (${q ? '$q: String, ' : ''}$n: Int) { Page(perPage: $n) { media(type: ANIME, isAdult: false, ${q ? 'search: $q, ' : ''}${filter}) { ${FIELDS} } } }`;
@@ -186,7 +187,6 @@ const sortSel = $('#sort');
 const listCount = $('#listCount');
 const emptyStart = $('#emptyStart');
 const emptyFilter = $('#emptyFilter');
-const heroStack = $('#heroStack');
 const genreBars = $('#genreBars');
 const discoverEl = $('#discover');
 const discoverTabs = $('#discoverTabs');
@@ -236,6 +236,7 @@ function cardHTML(a, i, animate) {
   <article class="card${animate ? ' card--enter' : ''}" data-id="${esc(a.id)}" style="--i:${Math.min(i, 12)}">
     <div class="card__cover" title="Editar">
       ${coverImg(a)}
+      ${a.synopsis ? `<div class="card__hover"><p>${esc(a.synopsis)}</p></div>` : ''}
       <div class="card__badges">
         <span class="badge status s-${a.status}">${STATUS[a.status]}</span>
         <span class="badge prio prio--${a.priority}">${PRIORITY[a.priority]}</span>
@@ -345,15 +346,62 @@ function moveThumb(seg) {
 }
 const press = (seg, btn) => $$('button', seg).forEach(b => b.setAttribute('aria-pressed', String(b === btn)));
 
-/* ---------- Render: hero y estadísticas ---------- */
-function renderHero() {
-  const covers = items.filter(a => a.image).slice(0, 5);
-  const tiles = covers.length >= 3 ? covers.map(a => coverImg(a)) : HERO_TILES;
-  heroStack.innerHTML = tiles.map((html, i) => {
-    const k = i - (tiles.length - 1) / 2;
-    return `<div class="stack-card" style="--k:${k};--i:${i};--y:${Math.abs(k) * 18}px;z-index:${10 - Math.abs(k) * 2}">${html}</div>`;
+/* ---------- Muro de pósters (anime en tendencia) y arte de fondo ---------- */
+let wallList = [];
+// AniList guarda extraLarge en /cover/large/ y large en /cover/medium/: el muro no necesita la grande
+const smallCover = a => ({ ...a, image: a.image.replace('/cover/large/', '/cover/medium/') });
+
+async function loadWalls() {
+  try { wallList = (await getDiscover('season')).filter(a => a.image); } catch { wallList = []; }
+  const rows = [wallList.slice(0, 12), wallList.slice(12, 24)].filter(r => r.length >= 6);
+  const html = rows.map(r => {
+    const posters = r.map(a => `<button class="poster" type="button" tabindex="-1" data-wall="${a.aniId}">${coverImg(smallCover(a))}<span>${esc(a.title)}</span></button>`).join('');
+    return `<div class="wall__row">${posters}${posters}</div>`; // doble para el bucle infinito
   }).join('');
+  $$('.wall').forEach(w => { w.innerHTML = html; });
+  const banner = wallList.find(a => a.banner)?.banner;
+  if (banner) {
+    const art = $('#discoverArt');
+    art.src = banner;
+    art.hidden = false;
+  }
 }
+
+// Clic en un póster: con sesión abre el editor con ese anime ya cargado; sin sesión invita a crear cuenta.
+document.addEventListener('click', e => {
+  const p = e.target.closest('[data-wall]');
+  const a = p && wallList.find(x => x.aniId === Number(p.dataset.wall));
+  if (!a) return;
+  if (!user) {
+    setAuthMode('signup');
+    A.email.focus();
+    return;
+  }
+  openEditor();
+  lookupList = [a];
+  pick(a, true);
+  renderResults();
+});
+
+/* ---------- Tema claro / oscuro ---------- */
+const THEME_KEY = 'animelist.theme';
+const themeBtn = $('#themeToggle');
+const darkMQ = matchMedia('(prefers-color-scheme: dark)');
+const isDark = () => (document.documentElement.dataset.theme || (darkMQ.matches ? 'dark' : 'light')) === 'dark';
+const syncThemeLabel = () => themeBtn.setAttribute('aria-label', isDark() ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro');
+
+themeBtn.addEventListener('click', () => {
+  const next = isDark() ? 'light' : 'dark';
+  try { localStorage.setItem(THEME_KEY, next); } catch {}
+  const apply = () => { document.documentElement.dataset.theme = next; syncThemeLabel(); };
+  if (!document.startViewTransition || reduceMotion) return apply();
+  const r = themeBtn.getBoundingClientRect();
+  document.documentElement.style.setProperty('--vt-x', `${r.left + r.width / 2}px`);
+  document.documentElement.style.setProperty('--vt-y', `${r.top + r.height / 2}px`);
+  document.startViewTransition(apply);
+});
+darkMQ.addEventListener('change', syncThemeLabel);
+syncThemeLabel();
 
 const FMT = { int: v => Math.round(v).toLocaleString('es'), pct: v => `${Math.round(v)}%`, dec: v => v.toFixed(1) };
 function countTo(el, to) {
@@ -693,23 +741,29 @@ function syncDiscover() {
   });
 }
 
+// Una sola petición por pestaña: la comparten "Descubrir" y el muro de pósters. Si falla, se puede reintentar.
+const getDiscover = tab => (discoverCache[tab] ??= anilist(DISCOVER[tab]).catch(err => {
+  delete discoverCache[tab];
+  throw err;
+}));
+let discoverList = [];
+
 async function loadDiscover(tab) {
   discoverTab = tab;
   press(discoverTabs, $(`[data-tab="${tab}"]`, discoverTabs));
   moveThumb(discoverTabs);
-  if (!discoverCache[tab]) {
-    discoverEl.innerHTML = '<div class="dcard dcard--skeleton"><div class="dcard__cover"></div><div class="sk-line"></div><div class="sk-line sk-line--short"></div></div>'.repeat(8);
-    try {
-      discoverCache[tab] = await anilist(DISCOVER[tab]);
-    } catch (err) {
-      if (discoverTab === tab) {
-        discoverEl.innerHTML = `<div class="discover__msg"><p>${err.message === 'rate' ? 'AniList pide una pausa. Intenta en unos segundos.' : 'No pude conectar con AniList.'}</p><button class="btn btn--primary btn--sm" type="button" data-retry="${tab}">Reintentar</button></div>`;
-      }
-      return;
+  discoverEl.innerHTML = '<div class="dcard dcard--skeleton"><div class="dcard__cover"></div><div class="sk-line"></div><div class="sk-line sk-line--short"></div></div>'.repeat(8);
+  let list;
+  try {
+    list = await getDiscover(tab);
+  } catch (err) {
+    if (discoverTab === tab) {
+      discoverEl.innerHTML = `<div class="discover__msg"><p>${err.message === 'rate' ? 'AniList pide una pausa. Intenta en unos segundos.' : 'No pude conectar con AniList.'}</p><button class="btn btn--primary btn--sm" type="button" data-retry="${tab}">Reintentar</button></div>`;
     }
+    return;
   }
   if (discoverTab !== tab) return;
-  const list = discoverCache[tab];
+  discoverList = list;
   discoverEl.innerHTML = list.length ? list.map(dcardHTML).join('') : '<div class="discover__msg"><p>Nada por aquí todavía.</p></div>';
   discoverEl.scrollLeft = 0;
   syncDiscover();
@@ -720,7 +774,7 @@ discoverEl.addEventListener('click', e => {
   if (retry) return loadDiscover(retry.dataset.retry);
   const b = e.target.closest('[data-ani]');
   if (!b || b.disabled) return;
-  const src = (discoverCache[discoverTab] || []).find(a => a.aniId === Number(b.dataset.ani));
+  const src = discoverList.find(a => a.aniId === Number(b.dataset.ani));
   if (!src || hasAni(src.aniId)) return;
   const a = { ...src, id: uid(), addedAt: Date.now(), updatedAt: Date.now() };
   items.unshift(a);
@@ -835,7 +889,6 @@ async function enter(u) {
     toast('No pude cargar tu lista. Revisa tu conexión y recarga la página.', null, 8000);
   }
   if (user !== u) return; // cerró sesión mientras cargaba
-  renderHero();
   refresh('all');
   const local = localBackup();
   if (local.length) {
@@ -1055,6 +1108,7 @@ formStars.innerHTML = [1, 2, 3, 4, 5].map(n => `<button class="star" type="butto
 const track = $('.marquee__track');
 track.append(track.firstElementChild.cloneNode(true)); // segunda copia para el bucle infinito
 setAuthMode('login');
+loadWalls();
 
 if (!db) {
   setView('auth');
