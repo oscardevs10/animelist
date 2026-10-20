@@ -276,8 +276,11 @@
       <div class="extras">
         <button class="wrapped-cta reveal" type="button" data-action="wrapped">
           <span class="wrapped-cta__jp" aria-hidden="true">今年</span>
+          <span class="wrapped-cta__covers" id="wrapCovers" aria-hidden="true"></span>
           <span class="wrapped-cta__eyebrow">Resumen anual</span>
+          <span class="wrapped-cta__year" id="wrapYear"></span>
           <span class="wrapped-cta__title">Tu año en anime</span>
+          <span class="wrapped-cta__chips" id="wrapChips"></span>
           <span class="wrapped-cta__go">Ver mi resumen →</span>
         </button>
         <div class="panel achievements reveal">
@@ -285,6 +288,8 @@
             <h3 class="panel__title">Logros</h3>
             <span class="achievements__count" id="badgeCount">0 / 0</span>
           </div>
+          <div class="achievements__bar" aria-hidden="true"><i id="badgeBar"></i></div>
+          <p class="achievements__next" id="badgeNext"></p>
           <ul class="badges" id="badges"></ul>
         </div>
       </div>
