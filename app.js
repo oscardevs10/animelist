@@ -666,19 +666,19 @@ function renderStats() {
 
 /* ---------- Logros ---------- */
 const BADGES = [
-  { id: 'first', tier: 'common', icon: '🌱', name: 'Primer paso', desc: 'Guarda tu primer título', goal: 1, val: s => s.total },
-  { id: 'collector', tier: 'rare', icon: '📚', name: 'Coleccionista', desc: 'Guarda 25 títulos', goal: 25, val: s => s.total },
-  { id: 'eps100', tier: 'common', icon: '📺', name: '100 episodios', desc: 'Mira 100 episodios', goal: 100, val: s => s.eps },
-  { id: 'eps500', tier: 'epic', icon: '🔥', name: '500 episodios', desc: 'Mira 500 episodios', goal: 500, val: s => s.eps },
-  { id: 'eps1000', tier: 'legend', icon: '👑', name: 'Mil episodios', desc: 'Mira 1000 episodios', goal: 1000, val: s => s.eps },
-  { id: 'done10', tier: 'rare', icon: '🏁', name: 'Completista', desc: 'Termina 10 títulos', goal: 10, val: s => s.done },
-  { id: 'marathon', tier: 'epic', icon: '⚡', name: 'Maratonero', desc: '10 episodios en un día', goal: 10, val: s => s.bestDay },
-  { id: 'streak', tier: 'epic', icon: '📅', name: 'Constante', desc: '7 días seguidos viendo o leyendo', goal: 7, val: s => s.bestStreak },
-  { id: 'explorer', tier: 'common', icon: '🧭', name: 'Explorador', desc: 'Prueba 5 géneros distintos', goal: 5, val: s => s.genres },
-  { id: 'reader', tier: 'rare', icon: '📖', name: 'Lector', desc: 'Lee 100 capítulos de manga', goal: 100, val: s => s.chapters },
-  { id: 'critic', tier: 'common', icon: '⭐', name: 'Crítico', desc: 'Califica 10 títulos', goal: 10, val: s => s.rated },
-  { id: 'reviewer', tier: 'rare', icon: '✍️', name: 'Reseñista', desc: 'Escribe 3 reseñas', goal: 3, val: s => s.reviews },
-  { id: 'classic', tier: 'legend', icon: '🎞️', name: 'Clásico', desc: 'Termina uno anterior al 2000', goal: 1, val: s => s.classics },
+  { id: 'first', kanji: '初', name: 'Primer paso', desc: 'Guarda tu primer título', goal: 1, val: s => s.total },
+  { id: 'collector', kanji: '蔵', name: 'Coleccionista', desc: 'Guarda 25 títulos', goal: 25, val: s => s.total },
+  { id: 'eps100', kanji: '百', name: '100 episodios', desc: 'Mira 100 episodios', goal: 100, val: s => s.eps },
+  { id: 'eps500', kanji: '炎', name: '500 episodios', desc: 'Mira 500 episodios', goal: 500, val: s => s.eps },
+  { id: 'eps1000', kanji: '王', name: 'Mil episodios', desc: 'Mira 1000 episodios', goal: 1000, val: s => s.eps },
+  { id: 'done10', kanji: '完', name: 'Completista', desc: 'Termina 10 títulos', goal: 10, val: s => s.done },
+  { id: 'marathon', kanji: '速', name: 'Maratonero', desc: '10 episodios en un día', goal: 10, val: s => s.bestDay },
+  { id: 'streak', kanji: '続', name: 'Constante', desc: '7 días seguidos viendo o leyendo', goal: 7, val: s => s.bestStreak },
+  { id: 'explorer', kanji: '探', name: 'Explorador', desc: 'Prueba 5 géneros distintos', goal: 5, val: s => s.genres },
+  { id: 'reader', kanji: '読', name: 'Lector', desc: 'Lee 100 capítulos de manga', goal: 100, val: s => s.chapters },
+  { id: 'critic', kanji: '評', name: 'Crítico', desc: 'Califica 10 títulos', goal: 10, val: s => s.rated },
+  { id: 'reviewer', kanji: '筆', name: 'Reseñista', desc: 'Escribe 3 reseñas', goal: 3, val: s => s.reviews },
+  { id: 'classic', kanji: '古', name: 'Clásico', desc: 'Termina uno anterior al 2000', goal: 1, val: s => s.classics },
 ];
 
 // Racha más larga de días consecutivos con actividad (días "AAAA-MM-DD").
@@ -711,27 +711,23 @@ function badgeStats() {
   };
 }
 
-const TIER_LABEL = { common: 'Común', rare: 'Raro', epic: 'Épico', legend: 'Legendario' };
-
+// Libreta de sellos: cada logro es un sello hanko con su kanji; inclinación fija por logro (no cambia al repintar).
 function renderBadges(s = badgeStats()) {
-  const list = BADGES.map(b => {
+  const list = BADGES.map((b, i) => {
     const v = Math.min(b.val(s), b.goal);
-    return { ...b, v, p: v / b.goal, on: v >= b.goal };
+    return { ...b, v, on: v >= b.goal, tilt: [-8, 5, -3, 9, -6, 3, -10, 7, -4, 6, -7, 4, -2][i] };
   });
-  const got = list.filter(b => b.on).length;
-  $('#badgeCount').textContent = `${got} / ${list.length}`;
-  $('#badgeBar').style.width = `${got / list.length * 100}%`;
-  const next = list.filter(b => !b.on).sort((a, b) => b.p - a.p)[0];
+  const got = list.filter(b => b.on);
+  $('#badgeCount').textContent = got.length;
+  const next = list.filter(b => !b.on).sort((a, b) => b.v / b.goal - a.v / a.goal)[0];
   $('#badgeNext').innerHTML = next
-    ? `Próximo: <b>${next.icon} ${esc(next.name)}</b> · ${next.v} / ${next.goal}`
-    : '¡Los tienes todos! 👑';
+    ? `Siguiente sello: <b><span lang="ja">${next.kanji}</span> ${esc(next.name)}</b>. ${esc(next.desc)} (${next.v} de ${next.goal}).`
+    : 'Libreta completa. 全部集めた！';
   $('#badges').innerHTML = list.map(b => `
-    <li class="badge-card tier-${b.tier}${b.on ? ' is-on' : ''}" style="--p:${Math.round(b.p * 100)}" title="${esc(b.desc)}">
-      <span class="badge-card__tier">${TIER_LABEL[b.tier]}</span>
-      <span class="badge-card__icon" aria-hidden="true"><span>${b.icon}</span></span>
-      <span class="badge-card__name">${esc(b.name)}</span>
-      <span class="badge-card__desc">${esc(b.desc)}</span>
-      <span class="badge-card__num">${b.on ? '✓ ¡Logrado!' : `${b.v} / ${b.goal}`}</span>
+    <li class="stamp${b.on ? ' is-on' : ''}" style="--tilt:${b.tilt}deg" title="${esc(b.desc)}${b.on ? '' : ` · ${b.v} de ${b.goal}`}">
+      <span class="stamp__seal" aria-hidden="true"><span lang="ja">${b.kanji}</span></span>
+      <b class="stamp__name">${esc(b.name)}</b>
+      <small class="stamp__desc">${b.on ? esc(b.desc) : `${b.v} de ${b.goal}`}</small>
     </li>`).join('');
   renderWrapCta();
 }
@@ -742,8 +738,10 @@ function renderWrapCta() {
   const year = new Date().getFullYear();
   const w = wrappedData(year);
   $('#wrapYear').textContent = year;
-  $('#wrapChips').innerHTML = [[w.hours, 'horas'], [w.eps, 'episodios'], [w.finished, w.finished === 1 ? 'terminado' : 'terminados']]
-    .map(([n, label]) => `<span><b>${n.toLocaleString('es')}</b> ${label}</span>`).join('');
+  // Sin actividad todavía: una frase en vez de una fila de ceros
+  $('#wrapLine').textContent = w.eps || w.caps || w.finished
+    ? [w.hours && `${w.hours.toLocaleString('es')} h`, w.eps && `${w.eps.toLocaleString('es')} episodios`, w.finished && `${w.finished} ${w.finished === 1 ? 'terminado' : 'terminados'}`].filter(Boolean).join(' · ')
+    : 'Se va llenando con cada episodio que marcas.';
   const prefix = `${year}-`;
   const top = items
     .map(a => [a, Object.entries(a.log).reduce((n, [d, c]) => n + (d.startsWith(prefix) ? c : 0), 0)])
@@ -768,7 +766,7 @@ function checkBadges() {
   try { localStorage.setItem(key, JSON.stringify(now)); } catch {}
   if (!Array.isArray(seen)) return; // primera vez en este navegador: no felicitar por lo que ya tenía
   BADGES.filter(b => now.includes(b.id) && !seen.includes(b.id)).forEach(b => {
-    toast(`🏆 Logro desbloqueado: ${b.icon} ${b.name}`, null, 5000);
+    toast(`Nuevo sello 「${b.kanji}」 ${b.name}`, null, 5000);
     burst($('#nav'));
   });
 }

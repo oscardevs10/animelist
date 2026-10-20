@@ -280,17 +280,19 @@
           <span class="wrapped-cta__eyebrow">Resumen anual</span>
           <span class="wrapped-cta__year" id="wrapYear"></span>
           <span class="wrapped-cta__title">Tu año en anime</span>
-          <span class="wrapped-cta__chips" id="wrapChips"></span>
+          <span class="wrapped-cta__line" id="wrapLine"></span>
           <span class="wrapped-cta__go">Ver mi resumen →</span>
         </button>
-        <div class="panel achievements reveal">
-          <div class="achievements__head">
-            <h3 class="panel__title">Logros</h3>
-            <span class="achievements__count" id="badgeCount">0 / 0</span>
+        <div class="panel stamps reveal">
+          <div class="stamps__head">
+            <div>
+              <h3 class="panel__title">Logros</h3>
+              <p class="stamps__sub">Tu libreta de sellos <span lang="ja">スタンプ帳</span></p>
+            </div>
+            <p class="stamps__count"><b id="badgeCount">0</b> de 13 sellos</p>
           </div>
-          <div class="achievements__bar" aria-hidden="true"><i id="badgeBar"></i></div>
-          <p class="achievements__next" id="badgeNext"></p>
-          <ul class="badges" id="badges"></ul>
+          <ul class="stamps__grid" id="badges"></ul>
+          <p class="stamps__next" id="badgeNext"></p>
         </div>
       </div>
     </div>
@@ -494,6 +496,9 @@
   </div>
 </dialog>
 
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <filter id="ink"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="7"/><feDisplacementMap in="SourceGraphic" scale="2.6"/></filter>
+</svg>
 <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
 <input type="file" id="importInput" accept=".json,application/json" hidden>
 
