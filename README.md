@@ -38,6 +38,8 @@ Para probar en tu PC antes de subir, abre `index.html` con doble clic. Usa la mi
 
 ## Configurar Supabase (solo una vez)
 
+> Ya está hecho para el proyecto `fxeaxhwhgmerdlwrthru`. Estos pasos sirven si algún día creas otro proyecto.
+
 1. Crea un proyecto gratis en https://supabase.com/dashboard.
 2. Ve a **SQL Editor**, pega el contenido de `supabase/schema.sql` y pulsa **Run**.
 3. Ve a **Authentication → Sign In / Providers → Email** y desactiva **Confirm email**. Así tus amigos entran al crear su cuenta, sin esperar correo; el servicio de correo gratis de Supabase solo manda unos pocos correos por hora.
@@ -52,4 +54,7 @@ Nunca pongas aquí la clave `service_role` / `secret`.
 
 ## Usuarios
 
-Cualquier persona con el enlace puede crear una cuenta. Para ver o borrar usuarios, o resetear una contraseña, entra a Supabase → **Authentication → Users**.
+Cualquier persona con el enlace puede crear una cuenta.
+
+- Ver, borrar o resetear la contraseña de usuarios: [Supabase → Authentication → Users](https://supabase.com/dashboard/project/fxeaxhwhgmerdlwrthru/auth/users).
+- Ver los datos guardados: [Supabase → Table Editor → animes](https://supabase.com/dashboard/project/fxeaxhwhgmerdlwrthru/editor).
