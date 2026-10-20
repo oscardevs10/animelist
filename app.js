@@ -248,7 +248,7 @@ function cardHTML(a, i, animate) {
         <h3 class="card__title">${esc(a.title)}</h3>
         ${meta ? `<p class="card__meta">${esc(meta)}</p>` : ''}
       </div>
-      ${a.genres.length ? `<div class="tags">${a.genres.slice(0, 3).map(g => `<span class="tag">${esc(g)}</span>`).join('')}</div>` : ''}
+      ${a.genres.length ? `<div class="tags">${a.genres.slice(0, 2).map(g => `<span class="tag">${esc(g)}</span>`).join('')}</div>` : ''}
       ${a.notes ? `<p class="card__notes">${esc(a.notes)}</p>` : ''}
       <div class="progress">
         <div class="progress__track"><span class="progress__fill" style="width:${pct(a) * 100}%"></span></div>
