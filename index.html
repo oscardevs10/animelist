@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>animelist · Animes que quiero ver</title>
+  <meta name="description" content="Tu watchlist personal de anime: guarda, organiza y sigue tu progreso.">
+  <meta name="theme-color" content="#163300">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%239fe870'/%3E%3Cpath d='M12 9.5v13l11-6.5z' fill='%23163300'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap">
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js" integrity="sha384-WgXwGL6fUsYJWNaKJgVbrJKGRQwc1vieh2oy4kw9nXqpNDz3tdSsqEYUgeHD/NuF" crossorigin="anonymous" defer></script>
+  <script src="config.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body data-view="boot">
+
+<header class="nav" id="nav">
+  <div class="nav__inner">
+    <a class="logo" href="#inicio" aria-label="animelist, ir al inicio">
+      <span class="logo__mark" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14"><path d="M7 4.5v15L20 12z" fill="currentColor"/></svg></span>
+      <span>animelist</span>
+    </a>
+    <nav class="nav__pills" aria-label="Secciones">
+      <a class="nav__pill" href="#lista">Mi lista</a>
+      <a class="nav__pill" href="#stats">Estadísticas</a>
+      <a class="nav__pill" href="#descubrir">Descubrir</a>
+    </nav>
+    <div class="nav__actions">
+      <span class="user-chip hide-sm" id="userEmail"></span>
+      <button class="btn btn--outline" type="button" data-action="logout">Salir</button>
+      <button class="btn btn--primary" type="button" data-action="add">
+        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Añadir
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- Acceso (visible sin sesión) -->
+<section class="auth" id="auth">
+  <div class="auth__intro">
+    <p class="eyebrow hero__eyebrow">Tu watchlist de anime · gratis</p>
+    <h1 class="display" aria-label="Animes que quiero ver">
+      <span class="line" aria-hidden="true"><span>Animes que</span></span>
+      <span class="line" aria-hidden="true"><span>quiero ver</span></span>
+    </h1>
+    <p class="hero__sub">Crea tu cuenta y guarda tu lista en la nube: la ves desde cualquier dispositivo. Invita a tus amigos, cada quien tiene la suya.</p>
+  </div>
+  <form class="auth__card" id="authForm">
+    <h2 class="auth__title" id="authTitle">Entra a tu lista</h2>
+    <div class="segmented segmented--dark" id="authTabs" role="group" aria-label="Tipo de acceso">
+      <span class="segmented__thumb" aria-hidden="true"></span>
+      <button type="button" data-mode="login" aria-pressed="true">Iniciar sesión</button>
+      <button type="button" data-mode="signup" aria-pressed="false">Crear cuenta</button>
+    </div>
+    <label class="field"><span>Correo</span><input class="input" name="email" type="email" autocomplete="email" maxlength="254" required></label>
+    <label class="field"><span>Contraseña</span><input class="input" name="password" type="password" autocomplete="current-password" minlength="6" maxlength="72" required></label>
+    <p class="auth__msg" id="authMsg" role="alert"></p>
+    <button class="btn btn--primary btn--lg" type="submit" id="authSubmit">Entrar</button>
+    <button class="btn-link btn-link--light" type="button" id="forgotBtn">¿Olvidaste tu contraseña?</button>
+    <button class="btn-link btn-link--light" type="button" id="backBtn" hidden>Volver a iniciar sesión</button>
+  </form>
+</section>
+
+<main>
+  <!-- Hero -->
+  <section class="hero" id="inicio">
+    <p class="eyebrow hero__eyebrow">Tu watchlist personal de anime</p>
+    <h1 class="display" aria-label="Animes que quiero ver">
+      <span class="line" aria-hidden="true"><span>Animes que</span></span>
+      <span class="line" aria-hidden="true"><span>quiero ver</span></span>
+    </h1>
+    <p class="hero__sub">Guarda cada serie que te recomiendan, sigue tu progreso episodio a episodio y deja que la ruleta elija tu próxima maratón.</p>
+    <div class="hero__cta">
+      <button class="btn btn--primary btn--lg" type="button" data-action="add">Añadir anime</button>
+      <button class="btn-link" type="button" data-action="random">¿Qué veo hoy?</button>
+    </div>
+    <div class="hero__stack" id="heroStack" aria-hidden="true"></div>
+  </section>
+
+  <div class="marquee" aria-hidden="true">
+    <div class="marquee__track">
+      <div class="marquee__group">
+        <span>Shōnen</span><span>Isekai</span><span>Seinen</span><span>Shōjo</span><span>Mecha</span><span>Slice of life</span><span>Josei</span><span>Spokon</span><span>Mahō shōjo</span><span>Cyberpunk</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mi lista -->
+  <section class="section" id="lista">
+    <div class="container">
+      <div class="section__head reveal">
+        <div>
+          <p class="eyebrow">Tu colección</p>
+          <h2 class="h-section">Mi lista</h2>
+        </div>
+        <p class="section__count" id="listCount"></p>
+      </div>
+
+      <div class="toolbar reveal">
+        <label class="search">
+          <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <span class="sr-only">Buscar en mi lista</span>
+          <input class="input" id="search" type="search" placeholder="Buscar por título, género o nota…" autocomplete="off">
+          <kbd aria-hidden="true">/</kbd>
+        </label>
+        <label>
+          <span class="sr-only">Ordenar</span>
+          <select class="select" id="sort">
+            <option value="recent">Más recientes</option>
+            <option value="priority">Prioridad</option>
+            <option value="title">Título A–Z</option>
+            <option value="rating">Mejor calificados</option>
+            <option value="progress">Más avanzados</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="segmented reveal" id="statusTabs" role="group" aria-label="Filtrar por estado">
+        <span class="segmented__thumb" aria-hidden="true"></span>
+        <button type="button" data-status="all" aria-pressed="true">Todos <span class="count">0</span></button>
+        <button type="button" data-status="plan" aria-pressed="false">Quiero ver <span class="count">0</span></button>
+        <button type="button" data-status="watching" aria-pressed="false">Viendo <span class="count">0</span></button>
+        <button type="button" data-status="done" aria-pressed="false">Completados <span class="count">0</span></button>
+        <button type="button" data-status="dropped" aria-pressed="false">Abandonados <span class="count">0</span></button>
+      </div>
+
+      <div class="chips" id="genreChips"></div>
+      <div class="grid" id="grid"></div>
+
+      <div class="empty" id="emptyStart" hidden>
+        <div class="empty__mark" aria-hidden="true">空</div>
+        <h3>Tu lista está vacía</h3>
+        <p>Busca cualquier anime en AniList o añádelo a mano. También puedes explorar lo que está en emisión.</p>
+        <div class="empty__cta">
+          <button class="btn btn--primary" type="button" data-action="add">Añadir mi primer anime</button>
+          <a class="btn-link" href="#descubrir">Explorar la temporada</a>
+        </div>
+      </div>
+      <div class="empty" id="emptyFilter" hidden>
+        <div class="empty__mark" aria-hidden="true">?</div>
+        <h3>Nada por aquí</h3>
+        <p>Ningún anime coincide con estos filtros.</p>
+        <button class="btn-link" type="button" data-action="clear-filters">Quitar filtros</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Estadísticas -->
+  <section class="band" id="stats">
+    <div class="container">
+      <div class="section__head reveal">
+        <div>
+          <p class="eyebrow">En números</p>
+          <h2 class="h-section">Tu progreso</h2>
+        </div>
+      </div>
+      <div class="stats-layout">
+        <div class="stat-grid reveal">
+          <div class="stat stat--feature"><span class="stat__num" data-stat="total">0</span><span class="stat__label">Animes guardados</span></div>
+          <div class="stat"><span class="stat__num" data-stat="plan">0</span><span class="stat__label">Por ver</span></div>
+          <div class="stat"><span class="stat__num" data-stat="watching">0</span><span class="stat__label">Viendo ahora</span></div>
+          <div class="stat"><span class="stat__num" data-stat="done">0</span><span class="stat__label">Completados</span></div>
+          <div class="stat"><span class="stat__num" data-stat="eps">0</span><span class="stat__label">Episodios vistos</span></div>
+          <div class="stat"><span class="stat__num" data-stat="hours">0</span><span class="stat__label">Horas de anime (≈24 min/ep)</span></div>
+        </div>
+        <div class="panel reveal">
+          <h3 class="panel__title">Distribución</h3>
+          <div class="dist" aria-hidden="true">
+            <span class="d-plan"></span><span class="d-watching"></span><span class="d-done"></span><span class="d-dropped"></span>
+          </div>
+          <ul class="legend">
+            <li><i class="d-plan"></i>Quiero ver <b data-legend="plan">0</b></li>
+            <li><i class="d-watching"></i>Viendo <b data-legend="watching">0</b></li>
+            <li><i class="d-done"></i>Completados <b data-legend="done">0</b></li>
+            <li><i class="d-dropped"></i>Abandonados <b data-legend="dropped">0</b></li>
+          </ul>
+          <div class="panel__row">
+            <div><span class="mini__num" data-stat="rate" data-fmt="pct">0%</span><span class="mini__label">Tasa de finalización</span></div>
+            <div><span class="mini__num" data-stat="avg" data-fmt="dec">0.0</span><span class="mini__label">Tu calificación media ★</span></div>
+          </div>
+          <h3 class="panel__title">Géneros favoritos</h3>
+          <ol class="bars" id="genreBars"></ol>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Descubrir -->
+  <section class="dark" id="descubrir">
+    <div class="container">
+      <div class="section__head reveal">
+        <div>
+          <p class="eyebrow eyebrow--dark">Desde AniList</p>
+          <h2 class="h-section">Descubre algo nuevo</h2>
+        </div>
+        <div class="discover__nav">
+          <button class="icon-btn icon-btn--dark" type="button" data-scroll="-1" aria-label="Anterior">
+            <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>
+          </button>
+          <button class="icon-btn icon-btn--dark" type="button" data-scroll="1" aria-label="Siguiente">
+            <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="segmented segmented--dark reveal" id="discoverTabs" role="group" aria-label="Qué descubrir">
+        <span class="segmented__thumb" aria-hidden="true"></span>
+        <button type="button" data-tab="season" aria-pressed="true">En emisión</button>
+        <button type="button" data-tab="top" aria-pressed="false">Top de todos los tiempos</button>
+        <button type="button" data-tab="upcoming" aria-pressed="false">Próximamente</button>
+      </div>
+      <div class="discover" id="discover"></div>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <div class="container footer__inner">
+    <div>
+      <a class="logo" href="#inicio" aria-label="animelist, ir al inicio">
+        <span class="logo__mark" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14"><path d="M7 4.5v15L20 12z" fill="currentColor"/></svg></span>
+        <span>animelist</span>
+      </a>
+      <p class="footer__note">Tu lista se guarda en la nube con tu cuenta. Puedes descargar un respaldo cuando quieras.</p>
+    </div>
+    <div class="footer__actions">
+      <button class="btn btn--outline" type="button" data-action="import">Importar respaldo</button>
+      <button class="btn btn--outline" type="button" data-action="export">Exportar respaldo</button>
+    </div>
+  </div>
+  <p class="container footer__credit">
+    Datos y portadas de <a href="https://anilist.co" target="_blank" rel="noopener">AniList</a>.
+    Atajos: <kbd>N</kbd> añadir · <kbd>/</kbd> buscar · <kbd>R</kbd> ruleta.
+  </p>
+</footer>
+
+<button class="fab" type="button" data-action="random" aria-label="¿Qué veo hoy? Elegir un anime al azar">
+  <svg viewBox="0 0 48 48" aria-hidden="true">
+    <rect x="6" y="6" width="36" height="36" rx="9" fill="none" stroke="currentColor" stroke-width="3"/>
+    <g fill="currentColor"><circle cx="16" cy="16" r="3.2"/><circle cx="32" cy="16" r="3.2"/><circle cx="24" cy="24" r="3.2"/><circle cx="16" cy="32" r="3.2"/><circle cx="32" cy="32" r="3.2"/></g>
+  </svg>
+  <span>¿Qué veo hoy?</span>
+</button>
+
+<!-- Modal: añadir / editar -->
+<dialog class="modal" id="editModal" aria-labelledby="editHeading">
+  <form class="modal__inner" id="editForm">
+    <header class="modal__head">
+      <h2 id="editHeading">Añadir anime</h2>
+      <button class="icon-btn" type="button" data-close aria-label="Cerrar">
+        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </header>
+
+    <div class="lookup">
+      <label class="field">
+        <span>Nombre del anime *</span>
+        <span class="search">
+          <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input class="input" name="title" required maxlength="200" autocomplete="off" placeholder="Escribe el nombre: Frieren, Haikyuu, One Piece…">
+        </span>
+      </label>
+      <p class="lookup__tip">Portada, episodios, géneros y sinopsis se cargan solos desde AniList. Pulsa <kbd>Enter</kbd> para guardar.</p>
+      <div class="lookup__results" id="lookupResults" aria-live="polite"></div>
+    </div>
+
+    <div class="form-grid">
+      <div class="cover-preview" id="coverPreview" aria-hidden="true"></div>
+      <div class="fields">
+        <fieldset class="field field--full">
+          <legend>Estado</legend>
+          <div class="options">
+            <label class="opt"><input type="radio" name="status" value="plan"><span>Quiero ver</span></label>
+            <label class="opt"><input type="radio" name="status" value="watching"><span>Viendo</span></label>
+            <label class="opt"><input type="radio" name="status" value="done"><span>Completado</span></label>
+            <label class="opt"><input type="radio" name="status" value="dropped"><span>Abandonado</span></label>
+          </div>
+        </fieldset>
+        <fieldset class="field">
+          <legend>Prioridad</legend>
+          <div class="options">
+            <label class="opt"><input type="radio" name="priority" value="high"><span>Alta</span></label>
+            <label class="opt"><input type="radio" name="priority" value="med"><span>Media</span></label>
+            <label class="opt"><input type="radio" name="priority" value="low"><span>Baja</span></label>
+          </div>
+        </fieldset>
+        <div class="field">
+          <span id="ratingLabel">Tu calificación</span>
+          <div class="stars stars--lg" id="formStars" role="group" aria-labelledby="ratingLabel"></div>
+          <input type="hidden" name="rating" value="0">
+        </div>
+        <label class="field"><span>Episodios totales</span><input class="input" name="episodes" type="number" min="0" max="100000" inputmode="numeric" placeholder="¿?"></label>
+        <label class="field"><span>Episodios vistos</span><input class="input" name="watched" type="number" min="0" max="100000" inputmode="numeric" placeholder="0"></label>
+        <label class="field field--full"><span>Géneros <small>(separados por coma)</small></span><input class="input" name="genres" placeholder="Acción, Fantasía" autocomplete="off"></label>
+        <label class="field field--full"><span>Portada <small>(URL de imagen)</small></span><input class="input" name="image" type="url" placeholder="https://…"></label>
+        <label class="field field--full"><span>Dónde verlo <small>(enlace)</small></span><input class="input" name="url" type="url" placeholder="https://…"></label>
+        <label class="field field--full"><span>Notas</span><textarea class="input" name="notes" rows="3" maxlength="2000" placeholder="Quién te lo recomendó, en qué plataforma está…"></textarea></label>
+      </div>
+    </div>
+
+    <div class="synopsis" id="synopsis" hidden><strong>Sinopsis</strong><p></p></div>
+    <p class="form-msg" id="formMsg" role="alert"></p>
+
+    <footer class="modal__foot">
+      <button class="btn-link btn-link--danger" type="button" id="deleteBtn">Eliminar</button>
+      <button class="btn btn--outline" type="button" data-close>Cancelar</button>
+      <button class="btn btn--primary" type="submit">Guardar</button>
+    </footer>
+  </form>
+</dialog>
+
+<!-- Modal: ruleta -->
+<dialog class="modal modal--sm" id="randomModal" aria-labelledby="randomTitle">
+  <div class="modal__inner random">
+    <button class="icon-btn modal__x" type="button" data-close aria-label="Cerrar">
+      <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+    <p class="eyebrow">La ruleta decide</p>
+    <div class="random__cover" id="randomCover"></div>
+    <h2 class="random__title" id="randomTitle"></h2>
+    <p class="random__meta" id="randomMeta"></p>
+    <div class="random__cta">
+      <button class="btn btn--primary btn--lg" type="button" id="startBtn">¡Empezar a verlo!</button>
+      <button class="btn-link" type="button" data-action="random">Girar otra vez</button>
+    </div>
+  </div>
+</dialog>
+
+<div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+<input type="file" id="importInput" accept=".json,application/json" hidden>
+
+</body>
+</html>
