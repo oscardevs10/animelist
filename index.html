@@ -208,6 +208,7 @@
 
   <!-- Estadísticas -->
   <section class="band" id="stats">
+    <div class="speedlines" aria-hidden="true"></div>
     <div class="container">
       <div class="section__head reveal" data-jp="統計">
         <div>
@@ -215,31 +216,58 @@
           <h2 class="h-section">Tu progreso</h2>
         </div>
       </div>
-      <div class="stats-layout">
-        <div class="stat-grid reveal">
-          <div class="stat stat--feature"><span class="stat__num" data-stat="total">0</span><span class="stat__label">Títulos guardados</span></div>
-          <div class="stat"><span class="stat__num" data-stat="plan">0</span><span class="stat__label">Por ver</span></div>
-          <div class="stat"><span class="stat__num" data-stat="watching">0</span><span class="stat__label">Viendo ahora</span></div>
-          <div class="stat"><span class="stat__num" data-stat="done">0</span><span class="stat__label">Completados</span></div>
-          <div class="stat"><span class="stat__num" data-stat="eps">0</span><span class="stat__label">Episodios vistos</span></div>
-          <div class="stat"><span class="stat__num" data-stat="hours">0</span><span class="stat__label">Horas de anime (≈24 min/ep)</span></div>
+      <div class="prog">
+        <div class="level reveal" title="XP: 1 por episodio, 1 cada 3 capítulos de manga y 5 por título terminado">
+          <div class="speedlines" aria-hidden="true"></div>
+          <div class="level__covers" id="levelCovers" aria-hidden="true"></div>
+          <p class="level__rank"><span class="jp" id="rankJp">新人</span><span id="rankName">Novato</span></p>
+          <p class="level__num"><span>Nivel</span><b data-stat="level">0</b></p>
+          <div class="level__xp" role="img" id="xpBar" aria-label="Experiencia"><i id="xpFill"></i></div>
+          <p class="level__next" id="xpNext"></p>
+          <div class="level__facts">
+            <span><b data-stat="eps">0</b> episodios</span>
+            <span><b data-stat="hours">0</b> horas</span>
+            <span><b data-stat="caps">0</b> capítulos</span>
+          </div>
         </div>
-        <div class="panel reveal">
-          <h3 class="panel__title">Distribución</h3>
-          <div class="dist" aria-hidden="true">
-            <span class="d-plan"></span><span class="d-watching"></span><span class="d-done"></span><span class="d-dropped"></span>
+        <div class="stiles reveal">
+          <div class="stile stile--plan" data-kanji="予"><b data-stat="plan">0</b><span>Por ver</span></div>
+          <div class="stile stile--watching" data-kanji="観"><b data-stat="watching">0</b><span>Viendo ahora</span></div>
+          <div class="stile stile--done" data-kanji="完"><b data-stat="done">0</b><span>Completados</span></div>
+          <div class="stile stile--total" data-kanji="蔵"><b data-stat="total">0</b><span>Títulos guardados</span></div>
+        </div>
+      </div>
+
+      <div class="prog2">
+        <div class="panel week reveal">
+          <div class="panel__head">
+            <h3 class="panel__title">Esta semana</h3>
+            <span class="streak" id="streak">🔥 0 días</span>
+          </div>
+          <div class="week__bars" id="weekBars"></div>
+          <p class="week__total" id="weekTotal"></p>
+        </div>
+        <div class="panel ring-card reveal">
+          <h3 class="panel__title">Tu lista</h3>
+          <div class="ring">
+            <svg viewBox="0 0 120 120" aria-hidden="true">
+              <circle class="ring__track" cx="60" cy="60" r="52"/>
+              <circle class="ring__seg seg-done" cx="60" cy="60" r="52"/>
+              <circle class="ring__seg seg-watching" cx="60" cy="60" r="52"/>
+              <circle class="ring__seg seg-plan" cx="60" cy="60" r="52"/>
+              <circle class="ring__seg seg-dropped" cx="60" cy="60" r="52"/>
+            </svg>
+            <div class="ring__center"><b data-stat="rate" data-fmt="pct">0%</b><span>terminado</span></div>
           </div>
           <ul class="legend">
-            <li><i class="d-plan"></i>Quiero ver <b data-legend="plan">0</b></li>
+            <li><i class="d-plan"></i>Por ver <b data-legend="plan">0</b></li>
             <li><i class="d-watching"></i>Viendo <b data-legend="watching">0</b></li>
             <li><i class="d-done"></i>Completados <b data-legend="done">0</b></li>
             <li><i class="d-dropped"></i>Abandonados <b data-legend="dropped">0</b></li>
           </ul>
-          <div class="panel__row">
-            <div><span class="mini__num" data-stat="rate" data-fmt="pct">0%</span><span class="mini__label">Tasa de finalización</span></div>
-            <div><span class="mini__num" data-stat="avg" data-fmt="dec">0.0</span><span class="mini__label">Calificación media ★</span></div>
-            <div><span class="mini__num" data-stat="caps">0</span><span class="mini__label">Capítulos de manga leídos</span></div>
-          </div>
+          <p class="ring__avg">★ <b data-stat="avg" data-fmt="dec">0.0</b> calificación media</p>
+        </div>
+        <div class="panel reveal">
           <h3 class="panel__title">Géneros favoritos</h3>
           <ol class="bars" id="genreBars"></ol>
         </div>

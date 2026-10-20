@@ -563,6 +563,62 @@ function countTo(el, to) {
   requestAnimationFrame(frame);
 }
 
+// Nivel tipo RPG: 1 XP por episodio, 1 cada 3 capítulos de manga y 5 por título terminado.
+const RANKS = [[25, 'Leyenda', '伝説'], [15, 'Sensei', '先生'], [10, 'Senpai', '先輩'], [5, 'Otaku', 'オタク'], [2, 'Aprendiz', '見習い'], [0, 'Novato', '新人']];
+const xpOf = s => s.eps + Math.round(s.chapters / 3) + s.done * 5;
+const levelOf = xp => Math.floor(Math.sqrt(xp / 10));
+const xpFor = level => 10 * level * level;
+const GENRES_JP = {
+  Acción: 'アクション', Aventura: '冒険', Comedia: 'コメディ', Drama: 'ドラマ', Fantasía: 'ファンタジー', Romance: '恋愛',
+  'Ciencia ficción': 'SF', 'Recuentos de la vida': '日常', Deportes: 'スポーツ', Sobrenatural: '超常', Misterio: 'ミステリー',
+  Terror: 'ホラー', Suspenso: 'スリラー', Psicológico: '心理', Música: '音楽', Mecha: 'メカ', 'Mahō shōjo': '魔法少女',
+  Action: 'アクション', Adventure: '冒険', Comedy: 'コメディ', Fantasy: 'ファンタジー', 'Sci-Fi': 'SF', 'Slice of Life': '日常',
+  Sports: 'スポーツ', Supernatural: '超常', Mystery: 'ミステリー', Horror: 'ホラー', Psychological: '心理', Thriller: 'スリラー', Music: '音楽',
+};
+const RING = 2 * Math.PI * 52; // circunferencia del anillo (r = 52)
+
+function currentStreak() {
+  const active = new Set(items.flatMap(a => Object.keys(a.log)));
+  const d = new Date();
+  if (!active.has(dayKey(d))) d.setDate(d.getDate() - 1); // hoy aún no marcas nada: la racha sigue viva
+  let n = 0;
+  while (active.has(dayKey(d))) { n++; d.setDate(d.getDate() - 1); }
+  return n;
+}
+
+let coversKey = '';
+function renderLevelCovers() {
+  const pick = items.filter(a => a.image)
+    .sort((a, b) => (b.status === 'watching') - (a.status === 'watching') || b.rating - a.rating || b.updatedAt - a.updatedAt)
+    .slice(0, 4);
+  const key = pick.map(a => a.id).join();
+  if (key === coversKey) return; // solo se vuelve a pintar si cambian (evita repetir la animación en cada +1)
+  coversKey = key;
+  $('#levelCovers').innerHTML = pick.map((a, i) => `<div class="lcover" style="--i:${i}">${coverImg(smallCover(a))}</div>`).join('');
+}
+
+function renderWeek() {
+  const days = Array.from({ length: 7 }, (_, i) => { const d = new Date(); d.setDate(d.getDate() - 6 + i); return d; });
+  const counts = days.map(d => items.reduce((n, a) => n + (a.log[dayKey(d)] || 0), 0));
+  const max = Math.max(1, ...counts);
+  const el = $('#weekBars');
+  if (el.dataset.start !== dayKey(days[0])) {
+    el.dataset.start = dayKey(days[0]);
+    el.innerHTML = days.map((d, i) => `<div class="wbar${i === 6 ? ' is-today' : ''}"><b></b><div class="wbar__col"><i></i></div><span>${i === 6 ? 'Hoy' : esc(d.toLocaleDateString('es', { weekday: 'short' }).replace('.', ''))}</span></div>`).join('');
+  }
+  requestAnimationFrame(() => [...el.children].forEach((bar, i) => {
+    bar.classList.toggle('has', counts[i] > 0);
+    bar.querySelector('i').style.height = `${counts[i] / max * 100}%`;
+    bar.querySelector('b').textContent = counts[i] || '';
+    bar.title = `${days[i].toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' })}: ${counts[i]}`;
+  }));
+  const total = counts.reduce((a, b) => a + b, 0);
+  const streak = currentStreak();
+  $('#streak').textContent = `🔥 ${streak} ${streak === 1 ? 'día' : 'días'} de racha`;
+  $('#streak').classList.toggle('is-off', !streak);
+  $('#weekTotal').textContent = total ? `${total} marcados en los últimos 7 días` : 'Marca episodios con + y aquí verás tu semana.';
+}
+
 function renderStats() {
   const s = badgeStats();
   renderBadges(s);
@@ -570,20 +626,41 @@ function renderStats() {
   const by = st => items.filter(a => a.status === st).length;
   const rated = items.filter(a => a.rating);
   const active = items.length - by('dropped');
+  const xp = xpOf(s);
+  const level = levelOf(xp);
   const values = {
     total: items.length, plan: by('plan'), watching: by('watching'), done: by('done'),
-    eps: s.eps, hours: s.eps * 24 / 60, caps: s.chapters,
+    eps: s.eps, hours: s.eps * 24 / 60, caps: s.chapters, level,
     rate: active ? by('done') / active * 100 : 0,
     avg: rated.length ? rated.reduce((n, a) => n + a.rating, 0) / rated.length : 0,
   };
   $$('[data-stat]').forEach(el => countTo(el, values[el.dataset.stat]));
-  Object.keys(STATUS).forEach(st => {
-    $(`.dist .d-${st}`).style.flexGrow = by(st);
+
+  // Nivel y experiencia
+  const [, rank, rankJp] = RANKS.find(([min]) => level >= min);
+  $('#rankName').textContent = rank;
+  $('#rankJp').textContent = rankJp;
+  const into = (xp - xpFor(level)) / (xpFor(level + 1) - xpFor(level));
+  $('#xpFill').style.width = `${Math.max(3, into * 100)}%`;
+  $('#xpBar').setAttribute('aria-label', `Experiencia: ${xp} XP`);
+  $('#xpNext').textContent = `${xp.toLocaleString('es')} XP · faltan ${(xpFor(level + 1) - xp).toLocaleString('es')} para el nivel ${level + 1}`;
+  renderLevelCovers();
+  renderWeek();
+
+  // Anillo: cuánto de tu lista está en cada estado
+  let offset = 0;
+  ['done', 'watching', 'plan', 'dropped'].forEach(st => {
+    const len = items.length ? by(st) / items.length * RING : 0;
+    const seg = $(`.ring .seg-${st}`);
+    seg.style.strokeDasharray = `${len} ${RING - len}`;
+    seg.style.strokeDashoffset = `${-offset}`;
+    offset += len;
     $(`[data-legend="${st}"]`).textContent = by(st);
   });
+
   const top = genreCounts().slice(0, 5);
   genreBars.innerHTML = top.length
-    ? top.map(([g, n]) => `<li><span class="bars__name">${esc(g)}</span><span class="bars__track"><i style="width:${n / top[0][1] * 100}%"></i></span><b>${n}</b></li>`).join('')
+    ? top.map(([g, n]) => `<li><span class="bars__name">${esc(g)}${GENRES_JP[g] ? `<small lang="ja">${GENRES_JP[g]}</small>` : ''}</span><span class="bars__track"><i style="width:${n / top[0][1] * 100}%"></i></span><b>${n}</b></li>`).join('')
     : '<li class="bars__empty">Añade animes con géneros para ver tus favoritos.</li>';
 }
 
