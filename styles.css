@@ -166,13 +166,14 @@ kbd {
 .nav.is-scrolled { box-shadow: var(--ring); }
 .nav__inner { max-width: var(--page-max-width); height: 64px; margin-inline: auto; padding-inline: 24px; display: flex; align-items: center; gap: 16px; }
 .logo { display: inline-flex; align-items: center; gap: 8px; font-size: 22px; font-weight: 900; letter-spacing: -0.05em; color: var(--brand); text-decoration: none; }
-.logo__mark {
-  width: 32px; height: 32px; border-radius: 50%;
-  display: grid; place-items: center;
-  background: var(--lime); color: var(--forest);
-  transition: transform .5s var(--ease-spring);
-}
-.logo:hover .logo__mark { transform: rotate(-120deg) scale(1.1); }
+.logo__mark { display: block; width: 34px; height: 34px; flex: none; transition: transform .4s var(--ease-spring); }
+.logo__mark svg { display: block; width: 100%; height: 100%; }
+.logo__eye { transform-box: fill-box; transform-origin: center; }
+.logo__spark { transform-box: fill-box; transform-origin: center; }
+.logo:hover .logo__mark { transform: rotate(-6deg) scale(1.08); }
+/* al pasar el mouse el ojo parpadea y la chispa gira */
+.logo:hover .logo__eye { animation: blink .5s ease; }
+.logo:hover .logo__spark { animation: sparkSpin .7s var(--ease-spring); }
 .logo__jp { align-self: flex-start; margin-top: 2px; font: 700 10px/1 var(--font-jp); letter-spacing: .08em; color: var(--muted); }
 .nav__pills { display: flex; gap: 4px; margin-left: 12px; }
 .nav__pill {
@@ -1063,6 +1064,8 @@ textarea.input { resize: vertical; min-height: 84px; line-height: 1.5; }
 @keyframes leave { to { opacity: 0; transform: scale(.9); } }
 @keyframes marquee { to { transform: translateX(-50%); } }
 @keyframes spin { to { transform: rotate(360deg); } }
+@keyframes blink { 40%, 60% { transform: scaleY(.08); } }
+@keyframes sparkSpin { from { transform: rotate(-90deg) scale(.4); } }
 @keyframes xpRun { to { background-position: 28px 0; } }
 @keyframes pulse { 50% { opacity: .45; } }
 @keyframes grow { from { transform: scaleX(0); } }
