@@ -1,16 +1,16 @@
 # animelist · Animes que quiero ver
 
-Watchlist de anime con cuentas. Cada persona crea su usuario y guarda su propia lista en la nube.
+Watchlist de anime y manga con cuentas. Cada persona crea su usuario con el enlace y guarda su propia lista en la nube.
 
 **Página:** https://oscardevs10.github.io/animelist/
 
-- Escribes el nombre de un anime y se cargan solos portada, episodios, géneros y sinopsis (AniList).
-- Estados (Quiero ver / Viendo / Completado / Abandonado), prioridad, calificación y progreso por episodio.
-- **Próximo episodio** de lo que estás viendo y **dónde verlo** (Crunchyroll, Netflix…), en vivo desde AniList.
-- **Compartir tu lista** con un enlace (sin tus notas) y ver la de un amigo, con los animes en común.
-- Registro con **código de invitación**.
-- Filtros, búsqueda, estadísticas, sección "Descubrir", ruleta "¿Qué veo hoy?", modo oscuro.
-- Se puede **instalar como app** en el celular.
+- Escribes el nombre de un anime **o manga / novela ligera** y se cargan solos portada, episodios o capítulos, géneros y sinopsis (AniList).
+- **Ficha de cada título:** tráiler, personajes con su voz japonesa, estudio, temporadas y relacionados (cada uno con "+ Añadir").
+- Estados, prioridad, calificación, progreso por episodio o capítulo, **listas propias** (#Favoritos, #Para ver con amigos…) y **reseña corta**.
+- **Próximo episodio**, **dónde verlo** (Crunchyroll, Netflix…) y **aviso de nueva temporada** cuando terminaste algo que tiene continuación.
+- **Historial:** se guarda cuántos episodios o capítulos marcas cada día. Con eso se calculan los **logros** y el **resumen anual** ("Tu año en anime"), que se puede compartir como imagen.
+- **Compartir tu lista** con un enlace y ver la de un amigo con los títulos en común. Tus reseñas y listas se ven; tus notas privadas y tu historial, no.
+- Filtros, búsqueda, estadísticas, "Descubrir", ruleta "¿Qué veo hoy?", modo oscuro, y se puede **instalar como app**.
 - Respaldo: exportar / importar en JSON.
 
 ## Cómo está hecho
@@ -20,7 +20,7 @@ Watchlist de anime con cuentas. Cada persona crea su usuario y guarda su propia 
 | Página | HTML + CSS + JavaScript, sin compilación | — |
 | Hosting | GitHub Pages (se publica sola desde la rama `main`) | Gratis |
 | Base de datos y login | [Supabase](https://supabase.com) (Postgres + Auth con correo y contraseña) | Gratis |
-| Info de los animes | API pública de [AniList](https://anilist.co) | Gratis |
+| Info de anime y manga | API pública de [AniList](https://anilist.co) | Gratis |
 | Mantener Supabase activo | GitHub Actions (`.github/workflows/keepalive.yml`, lunes y jueves) | Gratis |
 
 Archivos:
@@ -29,7 +29,8 @@ Archivos:
 - `config.js`: URL y clave pública de Supabase.
 - `manifest.webmanifest`, `sw.js`, `icons/`: lo necesario para instalarla como app.
 - `supabase/schema.sql`: tabla `animes` y reglas de seguridad.
-- `supabase/002_amigos_e_invitacion.sql`: perfiles, listas compartidas y código de invitación.
+- `supabase/002_amigos_e_invitacion.sql`: perfiles y listas compartidas.
+- `supabase/003_registro_libre.sql`: quita el código de invitación y oculta el historial en listas compartidas.
 
 ## Subir cambios
 
@@ -43,21 +44,16 @@ GitHub Pages publica el cambio en 1–2 minutos. Puedes ver el avance en la pest
 
 Para probar en tu PC antes de subir, abre `index.html` con doble clic. Usa la misma base de datos que la página publicada.
 
-## Código de invitación
+## Invitar amigos
 
-Sin el código correcto, la base de datos rechaza el registro, aunque alguien intente registrarse llamando a la API directamente. El código no está en este repo: vive en la base de datos.
-
-- **Ver el código:** en Supabase → SQL Editor, ejecuta `select value from private.settings where key = 'invite_code';`
-- **Enlace para invitar:** `https://oscardevs10.github.io/animelist/?invitacion=TU-CODIGO`. Abre directo "Crear cuenta" con el código puesto.
-- **Cambiarlo:** `update private.settings set value = 'nuevo-codigo' where key = 'invite_code';`
-- **Quitar el requisito:** `update private.settings set value = '' where key = 'invite_code';`
+Pásales el enlace de la página. Pulsan **Crear cuenta** y listo; no hace falta código.
 
 ## Configurar Supabase (solo una vez)
 
-> El paso 2 con `schema.sql` ya está hecho en el proyecto `fxeaxhwhgmerdlwrthru`. Falta ejecutar `002_amigos_e_invitacion.sql` (ver paso 2).
+> En el proyecto `fxeaxhwhgmerdlwrthru` ya se ejecutaron `schema.sql` y `002`. Falta ejecutar `003_registro_libre.sql` (paso 2).
 
 1. Crea un proyecto gratis en https://supabase.com/dashboard.
-2. Ve a **SQL Editor**, pega el contenido de `supabase/schema.sql` y pulsa **Run**. Después haz lo mismo con `supabase/002_amigos_e_invitacion.sql`; al final te muestra el código de invitación.
+2. Ve a **SQL Editor** y ejecuta, en orden, `supabase/schema.sql`, `supabase/002_amigos_e_invitacion.sql` y `supabase/003_registro_libre.sql`: pega cada uno y pulsa **Run**.
 3. Ve a **Authentication → Sign In / Providers → Email** y desactiva **Confirm email**. Así tus amigos entran al crear su cuenta, sin esperar correo. El servicio de correo gratis de Supabase solo manda unos pocos correos por hora.
 4. Ve a **Authentication → URL Configuration** y pon `https://oscardevs10.github.io/animelist/` en **Site URL** y en **Redirect URLs**. Lo usa el correo de "olvidé mi contraseña".
 5. Ve a **Project Settings → API**, copia **Project URL** y la clave **anon / publishable** y pégalas en `config.js`.
@@ -76,3 +72,9 @@ Nunca pongas aquí la clave `service_role` / `secret`.
 
 - Ver, borrar o resetear la contraseña de usuarios: [Supabase → Authentication → Users](https://supabase.com/dashboard/project/fxeaxhwhgmerdlwrthru/auth/users).
 - Ver los datos guardados: [Supabase → Table Editor](https://supabase.com/dashboard/project/fxeaxhwhgmerdlwrthru/editor).
+
+## Límites conocidos
+
+- El historial guarda los últimos 365 días con actividad de cada título, para no pasar el límite de tamaño por fila de la base.
+- Las fechas de término de lo que ya estaba completado antes del historial se toman de su última edición.
+- El resumen anual empieza a llenarse desde que marcas episodios con **+**.

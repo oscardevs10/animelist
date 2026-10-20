@@ -74,7 +74,6 @@
     </div>
     <label class="field"><span>Correo</span><input class="input" name="email" type="email" autocomplete="email" maxlength="254" required></label>
     <label class="field"><span>Contraseña</span><input class="input" name="password" type="password" autocomplete="current-password" minlength="6" maxlength="72" required></label>
-    <label class="field" hidden><span>Código de invitación</span><input class="input" name="invite" autocomplete="off" maxlength="40" placeholder="Pídeselo a quien te invitó"></label>
     <p class="auth__msg" id="authMsg" role="alert"></p>
     <button class="btn btn--primary btn--lg" type="submit" id="authSubmit">Entrar</button>
     <button class="btn-link btn-link--light" type="button" id="forgotBtn">¿Olvidaste tu contraseña?</button>
@@ -154,8 +153,16 @@
         <label class="search">
           <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
           <span class="sr-only">Buscar en mi lista</span>
-          <input class="input" id="search" type="search" placeholder="Buscar por título, género o nota…" autocomplete="off">
+          <input class="input" id="search" type="search" placeholder="Buscar por título, género, lista o nota…" autocomplete="off">
           <kbd aria-hidden="true">/</kbd>
+        </label>
+        <label>
+          <span class="sr-only">Tipo</span>
+          <select class="select" id="kindFilter">
+            <option value="all">Anime y manga</option>
+            <option value="anime">Solo anime</option>
+            <option value="manga">Solo manga</option>
+          </select>
         </label>
         <label>
           <span class="sr-only">Ordenar</span>
@@ -184,7 +191,7 @@
       <div class="empty" id="emptyStart" hidden>
         <div class="empty__mark" aria-hidden="true">(◕‿◕)ノ</div>
         <h3>Tu lista está vacía</h3>
-        <p>Busca cualquier anime en AniList o añádelo a mano. También puedes explorar lo que está en emisión.</p>
+        <p>Busca cualquier anime o manga en AniList o añádelo a mano. También puedes explorar lo que está en emisión.</p>
         <div class="empty__cta">
           <button class="btn btn--primary" type="button" data-action="add">Añadir mi primer anime</button>
           <a class="btn-link" href="#descubrir">Explorar la temporada</a>
@@ -193,7 +200,7 @@
       <div class="empty" id="emptyFilter" hidden>
         <div class="empty__mark" aria-hidden="true">(・_・;)</div>
         <h3>Nada por aquí</h3>
-        <p>Ningún anime coincide con estos filtros.</p>
+        <p>Nada coincide con estos filtros.</p>
         <button class="btn-link" type="button" data-action="clear-filters">Quitar filtros</button>
       </div>
     </div>
@@ -210,7 +217,7 @@
       </div>
       <div class="stats-layout">
         <div class="stat-grid reveal">
-          <div class="stat stat--feature"><span class="stat__num" data-stat="total">0</span><span class="stat__label">Animes guardados</span></div>
+          <div class="stat stat--feature"><span class="stat__num" data-stat="total">0</span><span class="stat__label">Títulos guardados</span></div>
           <div class="stat"><span class="stat__num" data-stat="plan">0</span><span class="stat__label">Por ver</span></div>
           <div class="stat"><span class="stat__num" data-stat="watching">0</span><span class="stat__label">Viendo ahora</span></div>
           <div class="stat"><span class="stat__num" data-stat="done">0</span><span class="stat__label">Completados</span></div>
@@ -230,10 +237,27 @@
           </ul>
           <div class="panel__row">
             <div><span class="mini__num" data-stat="rate" data-fmt="pct">0%</span><span class="mini__label">Tasa de finalización</span></div>
-            <div><span class="mini__num" data-stat="avg" data-fmt="dec">0.0</span><span class="mini__label">Tu calificación media ★</span></div>
+            <div><span class="mini__num" data-stat="avg" data-fmt="dec">0.0</span><span class="mini__label">Calificación media ★</span></div>
+            <div><span class="mini__num" data-stat="caps">0</span><span class="mini__label">Capítulos de manga leídos</span></div>
           </div>
           <h3 class="panel__title">Géneros favoritos</h3>
           <ol class="bars" id="genreBars"></ol>
+        </div>
+      </div>
+
+      <div class="extras">
+        <button class="wrapped-cta reveal" type="button" data-action="wrapped">
+          <span class="wrapped-cta__jp" aria-hidden="true">今年</span>
+          <span class="wrapped-cta__eyebrow">Resumen anual</span>
+          <span class="wrapped-cta__title">Tu año en anime</span>
+          <span class="wrapped-cta__go">Ver mi resumen →</span>
+        </button>
+        <div class="panel achievements reveal">
+          <div class="achievements__head">
+            <h3 class="panel__title">Logros</h3>
+            <span class="achievements__count" id="badgeCount">0 / 0</span>
+          </div>
+          <ul class="badges" id="badges"></ul>
         </div>
       </div>
     </div>
@@ -298,6 +322,24 @@
   <span>¿Qué veo hoy?</span>
 </button>
 
+<!-- Modal: ficha de un título -->
+<dialog class="modal modal--lg detail" id="detailModal" aria-labelledby="detailTitle">
+  <div id="detailBody"></div>
+</dialog>
+
+<!-- Modal: resumen anual -->
+<dialog class="modal modal--lg wrapped" id="wrappedModal" aria-labelledby="wrappedHeading">
+  <div class="modal__inner">
+    <button class="icon-btn icon-btn--dark modal__x" type="button" data-close aria-label="Cerrar">
+      <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+    <p class="eyebrow eyebrow--dark"><span class="jp">今年</span>Resumen anual</p>
+    <h2 class="wrapped__title" id="wrappedHeading">Tu <span id="wrappedYear"></span> en anime</h2>
+    <div id="wrappedBody"></div>
+    <button class="btn btn--primary btn--lg" type="button" id="wrappedShare">Compartir como imagen</button>
+  </div>
+</dialog>
+
 <!-- Modal: compartir mi lista -->
 <dialog class="modal modal--sm" id="shareModal" aria-labelledby="shareHeading">
   <form class="modal__inner" id="shareForm">
@@ -340,14 +382,18 @@
     </header>
 
     <div class="lookup">
+      <div class="options kind-pick" role="radiogroup" aria-label="Tipo">
+        <label class="opt"><input type="radio" name="kind" value="anime"><span>Anime</span></label>
+        <label class="opt"><input type="radio" name="kind" value="manga"><span>Manga / novela</span></label>
+      </div>
       <label class="field">
-        <span>Nombre del anime *</span>
+        <span>Nombre *</span>
         <span class="search">
           <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
           <input class="input" name="title" required maxlength="200" autocomplete="off" placeholder="Escribe el nombre: Frieren, Haikyuu, One Piece…">
         </span>
       </label>
-      <p class="lookup__tip">Portada, episodios, géneros y sinopsis se cargan solos desde AniList. Pulsa <kbd>Enter</kbd> para guardar.</p>
+      <p class="lookup__tip">Portada, episodios o capítulos, géneros y sinopsis se cargan solos desde AniList. Pulsa <kbd>Enter</kbd> para guardar.</p>
       <div class="lookup__results" id="lookupResults" aria-live="polite"></div>
     </div>
 
@@ -376,12 +422,14 @@
           <div class="stars stars--lg" id="formStars" role="group" aria-labelledby="ratingLabel"></div>
           <input type="hidden" name="rating" value="0">
         </div>
-        <label class="field"><span>Episodios totales</span><input class="input" name="episodes" type="number" min="0" max="100000" inputmode="numeric" placeholder="¿?"></label>
-        <label class="field"><span>Episodios vistos</span><input class="input" name="watched" type="number" min="0" max="100000" inputmode="numeric" placeholder="0"></label>
+        <label class="field"><span id="lblTotal">Episodios totales</span><input class="input" name="episodes" type="number" min="0" max="100000" inputmode="numeric" placeholder="¿?"></label>
+        <label class="field"><span id="lblWatched">Episodios vistos</span><input class="input" name="watched" type="number" min="0" max="100000" inputmode="numeric" placeholder="0"></label>
         <label class="field field--full"><span>Géneros <small>(separados por coma)</small></span><input class="input" name="genres" placeholder="Acción, Fantasía" autocomplete="off"></label>
         <label class="field field--full"><span>Portada <small>(URL de imagen)</small></span><input class="input" name="image" type="url" placeholder="https://…"></label>
         <label class="field field--full"><span>Dónde verlo <small>(enlace)</small></span><input class="input" name="url" type="url" placeholder="https://…"></label>
-        <label class="field field--full"><span>Notas</span><textarea class="input" name="notes" rows="3" maxlength="2000" placeholder="Quién te lo recomendó, en qué plataforma está…"></textarea></label>
+        <label class="field field--full"><span>Mis listas <small>(separadas por coma; crea las que quieras)</small></span><input class="input" name="tags" list="tagOptions" maxlength="250" autocomplete="off" placeholder="Para ver con amigos, Favoritos de siempre"><datalist id="tagOptions"></datalist></label>
+        <label class="field field--full"><span>Reseña corta <small>(la ven tus amigos si compartes tu lista)</small></span><textarea class="input" name="review" rows="2" maxlength="280" placeholder="¿Qué te pareció? En una o dos frases."></textarea></label>
+        <label class="field field--full"><span>Notas privadas <small>(solo tú las ves)</small></span><textarea class="input" name="notes" rows="2" maxlength="2000" placeholder="Quién te lo recomendó, en qué plataforma está…"></textarea></label>
       </div>
     </div>
 
