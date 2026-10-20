@@ -931,6 +931,24 @@ textarea.input { resize: vertical; min-height: 84px; line-height: 1.5; }
 [data-view="directory"] main, [data-view="directory"] .auth, [data-view="directory"] .friend, [data-view="directory"] .fab,
 [data-view="directory"] .footer__actions, [data-view="directory"]:not(.is-user) .nav__actions { display: none; }
 
+/* ===== Instalar como app ===== */
+.hero__install { margin: 22px auto 0; animation: fadeUp .8s .5s var(--ease-out) backwards; }
+@media (hover: hover) and (min-width: 761px) { .hero__install { display: none; } } /* en computadora queda solo en el pie */
+.install { position: relative; }
+.install__title { margin: 0 0 8px; padding-right: 48px; font-size: 34px; font-weight: 900; line-height: .95; letter-spacing: -0.05em; text-transform: uppercase; color: var(--text-strong); }
+.install__lead { margin: 0 0 20px; font-size: 15px; color: var(--muted); }
+.install__steps { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; counter-reset: paso; }
+.install__steps li { position: relative; padding-left: 44px; font-size: 16px; line-height: 1.45; counter-increment: paso; }
+.install__steps li::before {
+  content: counter(paso); position: absolute; left: 0; top: -3px;
+  width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%;
+  background: var(--lime); color: var(--forest); font-weight: 900;
+}
+.install__key { display: inline-grid; place-items: center; width: 28px; height: 28px; margin: 0 2px; vertical-align: middle; border-radius: 8px; background: var(--surface-2); color: var(--brand); }
+.install__key .i { width: 16px; height: 16px; }
+.install__key circle { fill: currentColor; }
+.install__note { margin: 20px 0 0; padding-top: 14px; border-top: 1px dashed var(--line); font-size: 13px; color: var(--muted); }
+
 /* ===== Footer ===== */
 .footer { padding: 56px 0 140px; border-top: 1px solid var(--line); }
 .footer__inner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 24px; }

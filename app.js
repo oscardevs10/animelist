@@ -2142,20 +2142,38 @@ friendGrid.addEventListener('click', e => {
 
 /* ---------- App instalable (PWA) ---------- */
 let installPrompt = null;
+const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const SHARE_ICON = '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M6 11v8.5A1.5 1.5 0 0 0 7.5 21h9a1.5 1.5 0 0 0 1.5-1.5V11"/></svg>';
+const MENU_ICON = '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>';
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('sw.js').catch(err => console.error(err));
 }
+// Ya abierta como app: no se ofrece instalar. Si no, el botón siempre está (en iPhone no existe la instalación directa).
+$$('[data-action="install"]').forEach(b => { b.hidden = isStandalone(); });
 addEventListener('beforeinstallprompt', e => {
-  e.preventDefault(); // se muestra nuestro botón en lugar del aviso del navegador
+  e.preventDefault(); // se usa nuestro botón en lugar del aviso del navegador
   installPrompt = e;
-  $$('[data-action="install"]').forEach(b => { b.hidden = false; });
+});
+addEventListener('appinstalled', () => {
+  $$('[data-action="install"]').forEach(b => { b.hidden = true; });
+  toast('¡Listo! Ya la tienes como app.');
 });
 async function install() {
-  if (!installPrompt) return;
-  installPrompt.prompt();
-  await installPrompt.userChoice;
-  installPrompt = null;
-  $$('[data-action="install"]').forEach(b => { b.hidden = true; });
+  if (installPrompt) {
+    installPrompt.prompt();
+    await installPrompt.userChoice;
+    installPrompt = null;
+    return;
+  }
+  $('#installSteps').innerHTML = isIOS
+    ? `<li>Ábrela en <b>Safari</b> y toca <b>Compartir</b> <span class="install__key">${SHARE_ICON}</span> en la barra de abajo.</li>
+       <li>Baja y elige <b>“Agregar a inicio”</b>.</li>
+       <li>Toca <b>Agregar</b>. El ícono del ojo aparece en tu pantalla de inicio.</li>`
+    : `<li>Toca el menú <span class="install__key">${MENU_ICON}</span> del navegador (arriba a la derecha).</li>
+       <li>Elige <b>“Instalar app”</b> o <b>“Agregar a la pantalla principal”</b>.</li>
+       <li>Confirma. El ícono del ojo aparece en tu pantalla de inicio.</li>`;
+  $('#installModal').showModal();
 }
 
 /* ---------- Eventos ---------- */

@@ -1,9 +1,12 @@
 // Service worker de animelist: red primero (siempre la versión más nueva) y copia guardada solo sin conexión.
 // Solo toca archivos de la propia página; Supabase y AniList van directo a la red.
-const CACHE = 'animelist-v1';
+const CACHE = 'animelist-v2'; // al cambiar el nombre se descartan las copias viejas (íconos, etc.)
 
 self.addEventListener('install', () => self.skipWaiting());
-self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
+self.addEventListener('activate', e => e.waitUntil((async () => {
+  for (const key of await caches.keys()) if (key !== CACHE) await caches.delete(key);
+  await self.clients.claim();
+})()));
 
 self.addEventListener('fetch', e => {
   const req = e.request;
