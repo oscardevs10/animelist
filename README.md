@@ -5,6 +5,7 @@ Watchlist de anime y manga con cuentas. Cada persona crea su usuario con el enla
 **Página:** https://oscardevs10.github.io/animelist/
 
 - Escribes el nombre de un anime **o manga / novela ligera** y se cargan solos portada, episodios o capítulos, géneros y sinopsis (AniList).
+- **Directorio** (`#directorio`): todo el catálogo de AniList con búsqueda, filtros (género, formato, año, temporada, estado, orden) y scroll infinito; "+ Quiero ver" en cada título. Se puede explorar sin cuenta.
 - **Ficha de cada título:** tráiler, personajes con su voz japonesa, estudio, temporadas y relacionados (cada uno con "+ Añadir").
 - Estados, prioridad, calificación, progreso por episodio o capítulo, **listas propias** (#Favoritos, #Para ver con amigos…) y **reseña corta**.
 - **Próximo episodio**, **dónde verlo** (Crunchyroll, Netflix…) y **aviso de nueva temporada** cuando terminaste algo que tiene continuación.
@@ -78,3 +79,4 @@ Nunca pongas aquí la clave `service_role` / `secret`.
 - El historial guarda los últimos 365 días con actividad de cada título, para no pasar el límite de tamaño por fila de la base.
 - Las fechas de término de lo que ya estaba completado antes del historial se toman de su última edición.
 - El resumen anual empieza a llenarse desde que marcas episodios con **+**.
+- Directorio de manga: al explorar sin buscar por nombre se muestran títulos con algo de popularidad (más de 1000 en AniList), porque AniList devuelve vacío con filtros muy amplios. Buscando por nombre aparecen todos.

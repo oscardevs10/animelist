@@ -465,6 +465,7 @@ function refresh(animate = 'none') {
   renderList(animate);
   renderStats();
   syncDiscover();
+  syncDir();
   checkBadges();
 }
 function commit(animate = 'none') {
@@ -1437,6 +1438,242 @@ detailModal.addEventListener('close', () => {
 });
 detailModal.addEventListener('click', e => { if (e.target === detailModal) detailModal.close(); });
 
+/* ---------- Directorio: todo el catálogo de AniList con filtros y scroll infinito ---------- */
+const DIR_GENRES = ['Action', 'Adventure', 'Comedy', 'Drama', 'Fantasy', 'Romance', 'Sci-Fi', 'Slice of Life', 'Sports', 'Supernatural', 'Mystery', 'Horror', 'Psychological', 'Thriller', 'Mecha', 'Music', 'Mahou Shoujo', 'Ecchi'];
+const DIR_FORMATS = {
+  anime: [['TV', 'Serie de TV'], ['MOVIE', 'Película'], ['OVA', 'OVA'], ['ONA', 'ONA (web)'], ['SPECIAL', 'Especial'], ['TV_SHORT', 'TV corto']],
+  manga: [['MANGA', 'Manga'], ['NOVEL', 'Novela ligera'], ['ONE_SHOT', 'One-shot']],
+};
+// La consulta lleva solo los filtros activos: AniList rechaza variables declaradas sin usar, falla con
+// filtros en null y, con manga, devuelve vacío si aparecen argumentos de temporada aunque vayan vacíos.
+const DIR_ARGS = {
+  page: ['Int'], type: ['MediaType', 'type'], search: ['String', 'search'], genre: ['String', 'genre'],
+  season: ['MediaSeason', 'season'], seasonYear: ['Int', 'seasonYear'], from: ['FuzzyDateInt', 'startDate_greater'],
+  to: ['FuzzyDateInt', 'startDate_lesser'], format: ['MediaFormat', 'format'], status: ['MediaStatus', 'status'],
+  popular: ['Int', 'popularity_greater'], sort: ['[MediaSort]', 'sort'],
+};
+const dirQuery = v => {
+  const keys = Object.keys(v);
+  return `query (${keys.map(k => `$${k}: ${DIR_ARGS[k][0]}`).join(', ')}) {
+    Page(page: $page, perPage: 30) { pageInfo { total hasNextPage }
+      media(isAdult: false, ${keys.filter(k => k !== 'page').map(k => `${DIR_ARGS[k][1]}: $${k}`).join(', ')}) { ${FIELDS} status } } }`;
+};
+const dirState = { kind: 'anime', q: '', genre: '', format: '', year: '', season: '', status: '', sort: 'POPULARITY_DESC', page: 1, hasNext: true, loading: false, token: 0, started: false, list: [] };
+const dirAiring = new Map(); // aniId → estado en AniList (para la etiqueta "En emisión")
+const dirGrid = $('#dirGrid');
+let dirTimer;
+
+// AniList rechaza filtros enviados como null: solo se mandan los que tienen valor.
+function dirVars() {
+  const d = dirState;
+  const anime = d.kind === 'anime';
+  const year = int(d.year, 1900, 2100);
+  const season = anime && d.season ? d.season : null;
+  const v = {
+    page: d.page,
+    type: anime ? 'ANIME' : 'MANGA',
+    search: d.q || null,
+    genre: d.genre || null,
+    season,
+    seasonYear: season && year ? year : null,
+    from: !season && year ? year * 10000 - 1 : null, // fechas difusas AAAAMMDD: todo el año
+    to: !season && year ? (year + 1) * 10000 : null,
+    format: d.format || null,
+    status: d.status || null,
+    // AniList se rinde (responde vacío) con manga "sin adultos" y pocos filtros; acotar a títulos con algo de
+    // popularidad lo evita. shortcut: oculta mangas muy poco conocidos al explorar (al buscar por nombre no aplica).
+    popular: !anime && !d.q ? 1000 : null,
+    sort: [d.q && d.sort === 'POPULARITY_DESC' ? 'SEARCH_MATCH' : d.sort],
+  };
+  return Object.fromEntries(Object.entries(v).filter(([, x]) => x != null));
+}
+
+function buildDirFilters() {
+  const now = new Date().getFullYear();
+  $('#dirYear').innerHTML = '<option value="">Cualquier año</option>' + Array.from({ length: now + 2 - 1960 }, (_, i) => now + 1 - i).map(y => `<option>${y}</option>`).join('');
+  syncDirKind();
+}
+
+function syncDirKind() {
+  const kind = dirState.kind;
+  $('#dirFormat').innerHTML = '<option value="">Todos los formatos</option>' + DIR_FORMATS[kind].map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
+  $('#dirSeason').hidden = kind !== 'anime';
+  $('#dirSearch').placeholder = kind === 'anime' ? 'Busca por nombre: Frieren, Chainsaw Man, Haikyuu…' : 'Busca por nombre: Berserk, One Piece, Solo Leveling…';
+  $('.directory .h-section').textContent = kind === 'anime' ? 'Directorio de anime' : 'Directorio de manga';
+  press($('#dirKind'), $(`[data-dkind="${kind}"]`));
+  moveThumb($('#dirKind'));
+  renderDirGenres();
+}
+
+function renderDirGenres() {
+  $('#dirGenres').innerHTML = [['', 'Todos los géneros'], ...DIR_GENRES.map(g => [g, GENRES_ES[g] || g])]
+    .map(([g, label]) => `<button class="chip${dirState.genre === g ? ' is-active' : ''}" type="button" data-dgenre="${esc(g)}">${esc(label)}</button>`).join('');
+}
+
+function dirCardHTML(a, i) {
+  const status = dirAiring.get(a.aniId);
+  const pill = status === 'RELEASING' ? '<span class="dir-card__pill is-live">En emisión</span>'
+    : status === 'NOT_YET_RELEASED' ? '<span class="dir-card__pill">Próximamente</span>' : '';
+  return `
+  <article class="dir-card" style="--i:${i % 30}">
+    <button class="dir-card__cover" type="button" data-dir="${a.aniId}" aria-label="Ver ficha de ${esc(a.title)}">
+      ${coverImg(a)}
+      ${a.synopsis ? `<span class="card__hover"><span>${esc(a.synopsis)}</span></span>` : ''}
+      ${a.score ? `<span class="badge dir-card__score">★ ${a.score.toFixed(1)}</span>` : ''}
+      ${pill}
+    </button>
+    <h3 class="dir-card__title">${esc(a.title)}</h3>
+    <p class="dir-card__meta">${esc(metaLine(a) || 'Próximamente')}</p>
+    ${a.genres.length ? `<p class="dir-card__genres">${a.genres.slice(0, 3).map(esc).join(' · ')}</p>` : ''}
+    ${user ? `<button class="btn btn--sm dir-card__add" type="button" data-dir-add="${a.aniId}"></button>` : ''}
+  </article>`;
+}
+
+function syncDir() {
+  $$('[data-dir-add]').forEach(b => {
+    const added = hasAni(Number(b.dataset.dirAdd));
+    b.disabled = added;
+    b.classList.toggle('btn--primary', !added);
+    b.classList.toggle('btn--outline', added);
+    b.textContent = added ? '✓ En tu lista' : '+ Quiero ver';
+  });
+}
+
+function renderDirMore() {
+  const d = dirState;
+  $('#dirMore').innerHTML = d.hasNext
+    ? '<button class="btn btn--outline" type="button" data-dir-more>Cargar más</button>'
+    : d.list.length ? '<p class="hint">Eso es todo con estos filtros.</p>' : '';
+}
+
+async function loadDir(reset = false) {
+  const d = dirState;
+  if (reset) {
+    d.page = 1;
+    d.list = [];
+    d.hasNext = true;
+    d.loading = false;
+    dirGrid.innerHTML = '<div class="dir-card dir-card--sk"><div class="dir-card__cover"></div><div class="sk-line"></div><div class="sk-line sk-line--short"></div></div>'.repeat(12);
+    $('#dirCount').textContent = 'Buscando…';
+    $('#dirMore').innerHTML = '';
+  }
+  if (d.loading || !d.hasNext) return;
+  d.loading = true;
+  d.asUser = !!user;
+  const token = ++d.token;
+  try {
+    let vars = dirVars();
+    let data = await gql(dirQuery(vars), vars);
+    // AniList a veces se rinde con filtros amplios y responde vacío: un reintento acotado a títulos con algo de popularidad
+    if (d.page === 1 && !vars.search && !vars.popular && !data?.Page?.media?.length && token === d.token) {
+      vars = { ...vars, popular: 1000 };
+      data = await gql(dirQuery(vars), vars);
+    }
+    if (token !== d.token) return;
+    const page = data?.Page;
+    (page?.media || []).forEach(m => dirAiring.set(m.id, str(m.status, 30)));
+    const list = (page?.media || []).map(fromAniList).filter(a => a?.aniId && !d.list.some(x => x.aniId === a.aniId));
+    if (d.page === 1) dirGrid.innerHTML = '';
+    dirGrid.insertAdjacentHTML('beforeend', list.map((a, i) => dirCardHTML(a, d.list.length + i)).join(''));
+    d.list.push(...list);
+    d.hasNext = !!page?.pageInfo?.hasNextPage;
+    d.page++;
+    const total = int(page?.pageInfo?.total, 0, 1e7) || 0;
+    $('#dirCount').textContent = total
+      ? `${total >= 5000 ? '5000+' : total.toLocaleString('es')} ${total === 1 ? 'resultado' : 'resultados'}`
+      : '';
+    if (!d.list.length) {
+      dirGrid.innerHTML = '<div class="empty dir-empty"><div class="empty__mark" aria-hidden="true">(・_・;)</div><h3>Nada por aquí</h3><p>No encontré títulos con esos filtros.</p><button class="btn-link" type="button" data-dir-clear>Limpiar filtros</button></div>';
+    }
+    syncDir();
+    renderDirMore();
+  } catch (err) {
+    if (token !== d.token) return;
+    console.error(err);
+    if (d.page === 1) dirGrid.innerHTML = '';
+    $('#dirCount').textContent = '';
+    $('#dirMore').innerHTML = `<div class="discover__msg dir-error"><p>${err.message === 'rate' ? 'AniList pide una pausa. Espera unos segundos.' : 'No pude conectar con AniList.'}</p><button class="btn btn--primary btn--sm" type="button" data-dir-more>Reintentar</button></div>`;
+  } finally {
+    if (token === d.token) d.loading = false;
+  }
+}
+
+function showDirectory() {
+  scrollTo(0, 0);
+  if (!dirState.started) {
+    dirState.started = true;
+    buildDirFilters();
+    loadDir(true);
+  }
+  setView('directory');
+  syncDir();
+  requestAnimationFrame(() => moveThumb($('#dirKind')));
+}
+
+function setDir(changes) {
+  Object.assign(dirState, changes);
+  loadDir(true);
+}
+
+$('#dirSearch').addEventListener('input', e => {
+  clearTimeout(dirTimer);
+  dirTimer = setTimeout(() => setDir({ q: e.target.value.trim() }), 450);
+});
+$('#dirKind').addEventListener('click', e => {
+  const b = e.target.closest('[data-dkind]');
+  if (!b || b.dataset.dkind === dirState.kind) return;
+  Object.assign(dirState, { kind: b.dataset.dkind, format: '', season: '' });
+  syncDirKind();
+  loadDir(true);
+});
+[['#dirFormat', 'format'], ['#dirYear', 'year'], ['#dirSeason', 'season'], ['#dirStatus', 'status'], ['#dirSort', 'sort']]
+  .forEach(([sel, key]) => $(sel).addEventListener('change', e => setDir({ [key]: e.target.value })));
+$('#dirGenres').addEventListener('click', e => {
+  const b = e.target.closest('[data-dgenre]');
+  if (!b) return;
+  dirState.genre = b.dataset.dgenre === dirState.genre ? '' : b.dataset.dgenre;
+  renderDirGenres();
+  loadDir(true);
+});
+
+function clearDir() {
+  Object.assign(dirState, { q: '', genre: '', format: '', year: '', season: '', status: '', sort: 'POPULARITY_DESC' });
+  $('#dirSearch').value = '';
+  ['#dirFormat', '#dirYear', '#dirSeason', '#dirStatus'].forEach(sel => { $(sel).value = ''; });
+  $('#dirSort').value = 'POPULARITY_DESC';
+  renderDirGenres();
+  loadDir(true);
+}
+$('#dirClear').addEventListener('click', clearDir);
+
+$('.directory').addEventListener('click', async e => {
+  if (e.target.closest('[data-dir-clear]')) return clearDir();
+  if (e.target.closest('[data-dir-more]')) return loadDir();
+  const cover = e.target.closest('[data-dir]');
+  if (cover) return openDetail(dirState.list.find(a => a.aniId === Number(cover.dataset.dir)));
+  const add = e.target.closest('[data-dir-add]');
+  if (!add || add.disabled) return;
+  add.disabled = true;
+  const src = dirState.list.find(a => a.aniId === Number(add.dataset.dirAdd));
+  const a = src && await addFromAniList(src.aniId, src).catch(() => null);
+  if (a) toast(`“${a.title}” añadido a tu lista`, { label: 'Editar', run: () => { const x = find(a.id); if (x) openEditor(x); } });
+  syncDir();
+});
+
+// Al bajar se cargan más resultados solos (y queda el botón "Cargar más" por si acaso).
+new IntersectionObserver(([en]) => {
+  if (en.isIntersecting && document.body.dataset.view === 'directory' && dirState.started) loadDir();
+}, { rootMargin: '800px' }).observe($('#dirMore'));
+
+// Navegación: #directorio abre el directorio; volver a "Mi lista" etc. regresa a la app.
+function route() {
+  if (location.hash === '#directorio') return showDirectory();
+  if (document.body.dataset.view !== 'directory') return;
+  setView(friendHandle ? 'friend' : user ? 'app' : 'auth');
+  if (location.hash) document.getElementById(location.hash.slice(1))?.scrollIntoView();
+}
+addEventListener('hashchange', route);
+
 /* ---------- Importar / exportar ---------- */
 function exportData() {
   const blob = new Blob([JSON.stringify({ app: 'animelist', version: 1, exportedAt: new Date().toISOString(), items }, null, 2)], { type: 'application/json' });
@@ -1502,8 +1739,17 @@ const AUTH_ERRORS = {
 let authMode = 'login';
 let recovering = false;
 
+const routeView = () => (location.hash === '#directorio' ? 'directory' : 'app');
+
 function setView(view) {
   document.body.dataset.view = view;
+  document.body.classList.toggle('is-user', !!user);
+  $$('.nav__pill').forEach(l => { if (view === 'directory') l.classList.toggle('is-active', l.getAttribute('href') === '#directorio'); });
+  if (view === 'directory') {
+    $('#dirCta').hidden = !!user;
+    // las tarjetas se dibujaron sin sesión (sin "+ Quiero ver") y ahora hay sesión, o al revés: se vuelven a pintar
+    if (dirState.started && dirState.asUser !== !!user) loadDir(true);
+  }
   if (view === 'auth') requestAnimationFrame(() => moveThumb(authTabs));
 }
 
@@ -1533,7 +1779,7 @@ function authNote(text, ok = false) {
 async function enter(u) {
   user = u;
   $('#userEmail').textContent = u.email;
-  setView(friendHandle ? 'friend' : 'app');
+  setView(friendHandle ? 'friend' : routeView());
   try {
     await loadItems();
   } catch (err) {
@@ -1573,7 +1819,7 @@ function leave() {
     setView('friend');
     renderFriend();
   } else {
-    setView('auth');
+    setView(routeView() === 'directory' ? 'directory' : 'auth');
   }
 }
 
@@ -1958,6 +2204,7 @@ setAuthMode('login');
 if (params.has('invitacion') || params.has('registro')) setAuthMode('signup'); // enlaces para invitar abren "Crear cuenta"
 loadWalls();
 if (friendHandle && db) showFriend();
+else if (location.hash === '#directorio') showDirectory();
 
 if (!db) {
   setView('auth');
@@ -1975,7 +2222,7 @@ if (!db) {
       }
       const u = session?.user ?? null;
       if (recovering || u?.id === user?.id) {
-        if (!u && !recovering) setView(friendHandle ? 'friend' : 'auth');
+        if (!u && !recovering) setView(friendHandle ? 'friend' : routeView() === 'directory' ? 'directory' : 'auth');
         return;
       }
       if (u) enter(u);

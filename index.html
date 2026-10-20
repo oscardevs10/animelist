@@ -33,6 +33,7 @@
       <a class="nav__pill" href="#lista">Mi lista</a>
       <a class="nav__pill" href="#stats">Estadísticas</a>
       <a class="nav__pill" href="#descubrir">Descubrir</a>
+      <a class="nav__pill" href="#directorio">Directorio</a>
     </nav>
     <div class="nav__right">
       <button class="icon-btn theme-toggle" type="button" id="themeToggle" aria-label="Cambiar a modo oscuro">
@@ -64,6 +65,7 @@
       <span class="sticker" aria-hidden="true">見たい!</span>
     </div>
     <p class="hero__sub">Crea tu cuenta y guarda tu lista en la nube: la ves desde cualquier dispositivo. Invita a tus amigos, cada quien tiene la suya.</p>
+    <a class="btn-link auth__explore" href="#directorio">Explorar el directorio de anime sin cuenta →</a>
   </div>
   <form class="auth__card" id="authForm">
     <h2 class="auth__title" id="authTitle">Entra a tu lista</h2>
@@ -81,6 +83,64 @@
   </form>
   </div>
   <div class="wall" aria-hidden="true"></div>
+</section>
+
+<!-- Directorio de anime y manga (#directorio) -->
+<section class="section directory" id="directorio">
+  <div class="speedlines" aria-hidden="true"></div>
+  <div class="container">
+    <div class="section__head" data-jp="名鑑">
+      <div>
+        <p class="eyebrow"><span class="jp">名鑑</span>Directorio</p>
+        <h1 class="h-section">Directorio de anime</h1>
+        <p class="directory__sub">Busca y filtra todo el catálogo de AniList. Abre la ficha para investigar y añade lo que quieras ver.</p>
+      </div>
+      <a class="btn btn--primary" id="dirCta" href="./" hidden>Crear mi cuenta gratis</a>
+    </div>
+    <div class="dir-tools">
+      <label class="search dir-search">
+        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <span class="sr-only">Buscar en el directorio</span>
+        <input class="input" id="dirSearch" type="search" placeholder="Busca por nombre: Frieren, Chainsaw Man, Berserk…" autocomplete="off">
+      </label>
+      <div class="segmented" id="dirKind" role="group" aria-label="Tipo">
+        <span class="segmented__thumb" aria-hidden="true"></span>
+        <button type="button" data-dkind="anime" aria-pressed="true">Anime</button>
+        <button type="button" data-dkind="manga" aria-pressed="false">Manga y novelas</button>
+      </div>
+    </div>
+    <div class="dir-filters">
+      <select class="select" id="dirFormat" aria-label="Formato"></select>
+      <select class="select" id="dirYear" aria-label="Año"></select>
+      <select class="select" id="dirSeason" aria-label="Temporada">
+        <option value="">Cualquier temporada</option>
+        <option value="WINTER">Invierno</option>
+        <option value="SPRING">Primavera</option>
+        <option value="SUMMER">Verano</option>
+        <option value="FALL">Otoño</option>
+      </select>
+      <select class="select" id="dirStatus" aria-label="Estado">
+        <option value="">Cualquier estado</option>
+        <option value="RELEASING">En emisión</option>
+        <option value="FINISHED">Finalizado</option>
+        <option value="NOT_YET_RELEASED">Próximamente</option>
+        <option value="HIATUS">En pausa</option>
+      </select>
+      <select class="select" id="dirSort" aria-label="Ordenar">
+        <option value="POPULARITY_DESC">Más populares</option>
+        <option value="SCORE_DESC">Mejor valorados</option>
+        <option value="TRENDING_DESC">En tendencia</option>
+        <option value="START_DATE_DESC">Más recientes</option>
+        <option value="FAVOURITES_DESC">Más favoritos</option>
+        <option value="TITLE_ROMAJI">Título A–Z</option>
+      </select>
+      <button class="btn-link" type="button" id="dirClear">Limpiar filtros</button>
+    </div>
+    <div class="chips dir-genres" id="dirGenres"></div>
+    <p class="dir-count" id="dirCount" aria-live="polite"></p>
+    <div class="dir-grid" id="dirGrid"></div>
+    <div class="dir-more" id="dirMore"></div>
+  </div>
 </section>
 
 <!-- Lista compartida de un amigo (?lista=...) -->
@@ -121,6 +181,7 @@
     <div class="hero__cta">
       <button class="btn btn--primary btn--lg" type="button" data-action="add">Añadir anime</button>
       <button class="btn-link" type="button" data-action="random">¿Qué veo hoy?</button>
+      <a class="btn-link" href="#directorio">Explorar el directorio</a>
     </div>
     <div class="wall" aria-hidden="true"></div>
   </section>
@@ -194,7 +255,7 @@
         <p>Busca cualquier anime o manga en AniList o añádelo a mano. También puedes explorar lo que está en emisión.</p>
         <div class="empty__cta">
           <button class="btn btn--primary" type="button" data-action="add">Añadir mi primer anime</button>
-          <a class="btn-link" href="#descubrir">Explorar la temporada</a>
+          <a class="btn-link" href="#directorio">Explorar el directorio</a>
         </div>
       </div>
       <div class="empty" id="emptyFilter" hidden>
@@ -308,6 +369,7 @@
           <h2 class="h-section">Descubre algo nuevo</h2>
         </div>
         <div class="discover__nav">
+          <a class="btn btn--on-dark btn--sm" href="#directorio">Ver directorio completo</a>
           <button class="icon-btn icon-btn--dark" type="button" data-scroll="-1" aria-label="Anterior">
             <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>
           </button>
