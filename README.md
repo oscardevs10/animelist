@@ -79,4 +79,5 @@ Nunca pongas aquí la clave `service_role` / `secret`.
 - El historial guarda los últimos 365 días con actividad de cada título, para no pasar el límite de tamaño por fila de la base.
 - Las fechas de término de lo que ya estaba completado antes del historial se toman de su última edición.
 - El resumen anual empieza a llenarse desde que marcas episodios con **+**.
+- Las sinopsis vienen en inglés de AniList y se traducen solas al español con el traductor público de Google (sin clave, no oficial). Cada una se traduce una vez y se guarda; si el traductor no responde, se muestra en inglés con un aviso.
 - Directorio de manga: al explorar sin buscar por nombre se muestran títulos con algo de popularidad (más de 1000 en AniList), porque AniList devuelve vacío con filtros muy amplios. Buscando por nombre aparecen todos.

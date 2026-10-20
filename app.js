@@ -111,6 +111,7 @@ function sanitize(a) {
     // sin fecha de término guardada (datos de antes del historial): se usa la última edición
     doneAt: status === 'done' ? int(a.doneAt, 0, 1e14) || int(a.updatedAt, 0, 1e14) || Date.now() : null,
     synopsis: str(a.synopsis, 4000),
+    synopsisEs: str(a.synopsisEs, 4500),
     url: safeUrl(a.url),
     banner: safeUrl(a.banner),
     year: int(a.year, 1900, 2100),
@@ -170,6 +171,73 @@ async function addFromAniList(aniId, base = null) {
   items.unshift(a);
   commit(a.id);
   return a;
+}
+
+/* ---------- Traducción de sinopsis (AniList solo las da en inglés) ---------- */
+// Usa el traductor público de Google (sin clave). shortcut: es un endpoint no oficial; si un día deja de
+// responder, la sinopsis se muestra en inglés con un aviso. Cambiar a un servicio con clave si hiciera falta.
+const TR_KEY = 'animelist.tr';
+const trCache = (() => {
+  try { return new Map(Object.entries(JSON.parse(localStorage.getItem(TR_KEY) || '{}'))); } catch { return new Map(); }
+})();
+const trPending = new Map();
+const trHash = t => { let h = 5381; for (const c of t) h = (h * 33 + c.codePointAt(0)) | 0; return `${(h >>> 0).toString(36)}.${t.length}`; };
+const cachedEs = text => (text ? trCache.get(trHash(str(text, 4000))) : '');
+const synopsisOf = a => a.synopsisEs || cachedEs(a.synopsis) || a.synopsis;
+
+function translateEs(text) {
+  const src = str(text, 4000);
+  if (!src) return Promise.resolve('');
+  const key = trHash(src);
+  if (trCache.has(key)) return Promise.resolve(trCache.get(key));
+  if (trPending.has(key)) return trPending.get(key);
+  const job = (async () => {
+    // por párrafos, en trozos de ~1500 caracteres para no pasar el largo máximo de la URL
+    const chunks = [];
+    let cur = '';
+    for (const part of src.split(/(?<=\n)/)) {
+      if (cur && (cur + part).length > 1500) { chunks.push(cur); cur = ''; }
+      cur += part;
+    }
+    if (cur) chunks.push(cur);
+    let out = '';
+    for (const chunk of chunks) {
+      const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=es&dt=t&q=${encodeURIComponent(chunk)}`);
+      if (!res.ok) throw new Error('tr');
+      const data = await res.json();
+      out += (Array.isArray(data?.[0]) ? data[0] : []).map(seg => (typeof seg?.[0] === 'string' ? seg[0] : '')).join('');
+    }
+    const es = str(out, 4500);
+    if (!es) throw new Error('tr');
+    trCache.set(key, es);
+    try { localStorage.setItem(TR_KEY, JSON.stringify(Object.fromEntries([...trCache].slice(-300)))); } catch {} // las últimas 300
+    return es;
+  })().finally(() => trPending.delete(key));
+  trPending.set(key, job);
+  return job;
+}
+
+// Traduce en segundo plano las sinopsis de mi lista (una vez por título; queda guardado en la cuenta).
+let trRunning = false;
+async function translateMissing() {
+  if (trRunning || !user) return;
+  const todo = items.filter(a => a.synopsis && !a.synopsisEs).slice(0, 60);
+  if (!todo.length) return;
+  trRunning = true;
+  let changed = false;
+  try {
+    for (const a of todo) {
+      if (!user) break;
+      try { a.synopsisEs = await translateEs(a.synopsis); changed = true; } catch { break; } // si falla, se reintenta otro día
+      await new Promise(r => setTimeout(r, 250));
+    }
+  } finally {
+    trRunning = false;
+  }
+  if (changed && user) {
+    save();
+    renderList('none');
+  }
 }
 
 /* ---------- En vivo desde AniList: próximo episodio y dónde verlo (no se guarda, cambia con el tiempo) ---------- */
@@ -365,7 +433,7 @@ function cardHTML(a, i, animate) {
   <article class="card${animate ? ' card--enter' : ''}" data-id="${esc(a.id)}" style="--i:${Math.min(i, 12)}">
     <div class="card__cover" title="Ver ficha">
       ${coverImg(a)}
-      ${a.synopsis ? `<div class="card__hover"><p>${esc(a.synopsis)}</p></div>` : ''}
+      ${a.synopsis ? `<div class="card__hover"><p>${esc(synopsisOf(a))}</p></div>` : ''}
       <div class="card__badges">
         <span class="badge status s-${a.status}">${statusLabel(a)}</span>
         <span class="badge prio prio--${a.priority}">${PRIORITY[a.priority]}</span>
@@ -472,6 +540,7 @@ function commit(animate = 'none') {
   const saved = save();
   refresh(animate);
   loadLive();
+  translateMissing();
   return saved;
 }
 
@@ -981,7 +1050,15 @@ function updatePreview() {
 }
 function showSynopsis() {
   synopsisEl.hidden = !meta.synopsis;
-  synopsisEl.querySelector('p').textContent = meta.synopsis || '';
+  const p = synopsisEl.querySelector('p');
+  p.textContent = meta.synopsisEs || meta.synopsis || '';
+  if (meta.synopsis && !meta.synopsisEs) {
+    const m = meta;
+    translateEs(m.synopsis).then(es => {
+      m.synopsisEs = es;
+      if (meta === m) p.textContent = es; // sigue siendo el mismo título en el editor
+    }).catch(() => {});
+  }
 }
 const formMsg = text => { formMsgEl.textContent = text; };
 
@@ -1023,7 +1100,7 @@ function openEditor(a = null) {
 
 const flash = el => el.animate?.([{ backgroundColor: '#e2f6d5' }, { backgroundColor: '#ffffff' }], { duration: 900, easing: 'ease-out' });
 // Datos de AniList que el formulario no muestra pero se guardan con el título.
-const metaOf = a => ({ aniId: a.aniId, synopsis: a.synopsis, year: a.year, type: a.type, score: a.score, banner: a.banner });
+const metaOf = a => ({ aniId: a.aniId, synopsis: a.synopsis, synopsisEs: a.synopsisEs || cachedEs(a.synopsis), year: a.year, type: a.type, score: a.score, banner: a.banner });
 
 // "Episodios" o "Capítulos" según se esté añadiendo anime o manga.
 function syncKindLabels() {
@@ -1379,11 +1456,35 @@ function renderDetail(base, d, mine, other = null) {
       ${d?.trailer ? `<button class="trailer" type="button" data-trailer="${d.trailer}" aria-label="Reproducir tráiler">
         <img src="https://i.ytimg.com/vi/${d.trailer}/hqdefault.jpg" alt="" loading="lazy" referrerpolicy="no-referrer">
         <span class="trailer__play">${ICON.play}</span><span class="trailer__label">Ver tráiler</span></button>` : ''}
-      ${info.synopsis ? `<section class="detail__sec"><h3>Sinopsis</h3><p class="detail__syn">${esc(info.synopsis)}</p></section>` : ''}
+      ${info.synopsis ? `<section class="detail__sec"><h3>Sinopsis</h3><p class="detail__syn" id="detailSyn">${esc(info.synopsis)}</p><p class="detail__tr" id="detailTr"></p></section>` : ''}
       ${review ? `<section class="detail__sec"><h3>${esc(reviewTitle)}</h3><blockquote class="review">${esc(review)}</blockquote></section>` : ''}
       ${mine?.tags.length ? `<div class="tags">${mine.tags.map(t => `<span class="tag tag--mine">#${esc(t)}</span>`).join('')}</div>` : ''}
       <div id="detailExtra">${d ? detailExtraHTML(d) : info.aniId ? '<p class="hint">Cargando personajes y temporadas…</p>' : ''}</div>
     </div>`;
+  fillDetailSynopsis(info.synopsis, mine);
+}
+
+async function fillDetailSynopsis(text, mine) {
+  const el = $('#detailSyn');
+  const note = $('#detailTr');
+  if (!el || !text) return;
+  const show = es => {
+    el.textContent = es;
+    el.dataset.es = es;
+    el.dataset.en = text;
+    note.innerHTML = 'Traducción automática · <button class="btn-link" type="button" data-orig>Ver original en inglés</button>';
+  };
+  const known = mine?.synopsisEs || cachedEs(text);
+  if (known) return show(known);
+  note.textContent = 'Traduciendo al español…';
+  try {
+    const es = await translateEs(text);
+    if (!el.isConnected) return;
+    show(es);
+    if (mine && !mine.synopsisEs && items.includes(mine)) { mine.synopsisEs = es; save(); }
+  } catch {
+    if (el.isConnected) note.textContent = 'No se pudo traducir ahora; se muestra en inglés.';
+  }
 }
 
 function detailExtraHTML(d) {
@@ -1410,6 +1511,14 @@ function detailExtraHTML(d) {
 }
 
 detailBody.addEventListener('click', async e => {
+  const orig = e.target.closest('[data-orig]');
+  if (orig) {
+    const el = $('#detailSyn');
+    const toEn = el.textContent === el.dataset.es;
+    el.textContent = toEn ? el.dataset.en : el.dataset.es;
+    orig.textContent = toEn ? 'Ver traducción' : 'Ver original en inglés';
+    return;
+  }
   const trailer = e.target.closest('[data-trailer]');
   if (trailer) {
     trailer.outerHTML = `<div class="trailer trailer--on"><iframe src="https://www.youtube-nocookie.com/embed/${trailer.dataset.trailer}?autoplay=1" title="Tráiler" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe></div>`;
@@ -1518,7 +1627,7 @@ function dirCardHTML(a, i) {
   <article class="dir-card" style="--i:${i % 30}">
     <button class="dir-card__cover" type="button" data-dir="${a.aniId}" aria-label="Ver ficha de ${esc(a.title)}">
       ${coverImg(a)}
-      ${a.synopsis ? `<span class="card__hover"><span>${esc(a.synopsis)}</span></span>` : ''}
+      ${a.synopsis ? `<span class="card__hover"><span>${esc(synopsisOf(a))}</span></span>` : ''}
       ${a.score ? `<span class="badge dir-card__score">★ ${a.score.toFixed(1)}</span>` : ''}
       ${pill}
     </button>
@@ -1660,6 +1769,16 @@ $('.directory').addEventListener('click', async e => {
   syncDir();
 });
 
+// Directorio: la sinopsis se traduce la primera vez que pasas el mouse por la portada.
+dirGrid.addEventListener('mouseover', e => {
+  const cover = e.target.closest('.dir-card__cover');
+  if (!cover || cover.dataset.tr) return;
+  cover.dataset.tr = '1';
+  const a = dirState.list.find(x => x.aniId === Number(cover.dataset.dir));
+  const span = cover.querySelector('.card__hover > span');
+  if (a?.synopsis && span) translateEs(a.synopsis).then(es => { span.textContent = es; }).catch(() => {});
+});
+
 // Al bajar se cargan más resultados solos (y queda el botón "Cargar más" por si acaso).
 new IntersectionObserver(([en]) => {
   if (en.isIntersecting && document.body.dataset.view === 'directory' && dirState.started) loadDir();
@@ -1795,6 +1914,7 @@ async function enter(u) {
   }
   refresh('all');
   loadLive();
+  translateMissing();
   const local = localBackup();
   if (local.length) {
     toast(`Hay ${local.length} animes guardados en este navegador.`, {
@@ -1950,7 +2070,7 @@ function friendCardHTML(a, i) {
   <article class="card card--ro card--enter" data-fid="${esc(a.id)}" style="--i:${Math.min(i, 12)}">
     <div class="card__cover">
       ${coverImg(a)}
-      ${a.synopsis ? `<div class="card__hover"><p>${esc(a.synopsis)}</p></div>` : ''}
+      ${a.synopsis ? `<div class="card__hover"><p>${esc(synopsisOf(a))}</p></div>` : ''}
       <div class="card__badges">
         <span class="badge status s-${a.status}">${statusLabel(a)}</span>
         ${mine ? '<span class="badge badge--common">✓ En común</span>' : ''}
