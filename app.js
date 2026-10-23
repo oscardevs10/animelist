@@ -356,6 +356,7 @@ const discoverCache = {};
 const nav = $('#nav');
 const grid = $('#grid');
 const statusTabs = $('#statusTabs');
+const kindTabs = $('#kindTabs');
 const chipsEl = $('#genreChips');
 const searchInput = $('#search');
 const sortSel = $('#sort');
@@ -502,9 +503,16 @@ function logProgress(a, delta) {
 }
 
 function updateCounts() {
+  $$('[data-kind]', kindTabs).forEach(b => {
+    const k = b.dataset.kind;
+    b.querySelector('.count').textContent = k === 'all' ? items.length : items.filter(a => a.kind === k).length;
+  });
+  moveThumb(kindTabs);
+  // Los contadores de estado cuentan solo el tipo elegido
+  const ofKind = items.filter(a => ui.kind === 'all' || a.kind === ui.kind);
   $$('[data-status]', statusTabs).forEach(b => {
     const s = b.dataset.status;
-    b.querySelector('.count').textContent = s === 'all' ? items.length : items.filter(a => a.status === s).length;
+    b.querySelector('.count').textContent = s === 'all' ? ofKind.length : ofKind.filter(a => a.status === s).length;
   });
   moveThumb(statusTabs);
   listCount.textContent = items.length ? `${items.length} ${items.length === 1 ? 'anime guardado' : 'animes guardados'}` : '';
@@ -2260,8 +2268,11 @@ form.addEventListener('change', e => {
   lookupFor = null;
   if (F.title.value.trim().length >= 2) runLookup();
 });
-$('#kindFilter').addEventListener('change', e => {
-  ui.kind = e.target.value;
+kindTabs.addEventListener('click', e => {
+  const b = e.target.closest('[data-kind]');
+  if (!b) return;
+  ui.kind = b.dataset.kind;
+  press(kindTabs, b);
   renderList();
 });
 lookupResults.addEventListener('click', e => {

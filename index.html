@@ -238,14 +238,12 @@
           <input class="input" id="search" type="search" placeholder="Buscar por título, género, lista o nota…" autocomplete="off">
           <kbd aria-hidden="true">/</kbd>
         </label>
-        <label>
-          <span class="sr-only">Tipo</span>
-          <select class="select" id="kindFilter">
-            <option value="all">Anime y manga</option>
-            <option value="anime">Solo anime</option>
-            <option value="manga">Solo manga</option>
-          </select>
-        </label>
+        <div class="segmented" id="kindTabs" role="group" aria-label="Tipo">
+          <span class="segmented__thumb" aria-hidden="true"></span>
+          <button type="button" data-kind="all" aria-pressed="true">Todo <span class="count">0</span></button>
+          <button type="button" data-kind="anime" aria-pressed="false">Anime <span class="count">0</span></button>
+          <button type="button" data-kind="manga" aria-pressed="false">Manga <span class="count">0</span></button>
+        </div>
         <label>
           <span class="sr-only">Ordenar</span>
           <select class="select" id="sort">
